@@ -1,12 +1,13 @@
 import 'reflect-metadata';
 import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
+import databaseConfig from '../config/database.config';
 import validationSchema from '../config/env.validation';
-import { buildDataSourceOptions, DatabaseEnv } from './database.options';
 
 /**
  * Entry point for the TypeORM CLI only (migration:generate/run/revert/show).
- * The Nest app never imports this file; it gets the same options via TypeOrmModule.
+ * The Nest app never imports this file; it gets the same options via
+ * `databaseConfig.asProvider()` in AppModule.
  *
  * Real environment variables win over `.env` (dotenv never overrides them),
  * and a missing `.env` (e.g. in production) is silently ignored.
@@ -23,4 +24,12 @@ if (error) {
   throw new Error(`Config validation error: ${error.message}`);
 }
 
-export default new DataSource(buildDataSourceOptions(value as DatabaseEnv));
+// Mirror ConfigModule: expose validated values, including Joi defaults
+// (e.g. DB_PORT=5432), to the config factory without overriding real env vars.
+for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+  if (!(key in process.env)) {
+    process.env[key] = String(val);
+  }
+}
+
+export default new DataSource(databaseConfig());

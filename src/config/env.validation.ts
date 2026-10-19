@@ -6,7 +6,7 @@ const validationSchema = Joi.object({
     .default('development'),
   // 1339, not 1338: the legacy Strapi API uses 1338 and both run side by side during migration.
   PORT: Joi.number().port().default(1339),
-  // Keys must match DatabaseEnv in database/database.options.ts.
+  // Read by the `database` namespace in config/database.config.ts.
   DB_HOST: Joi.string().hostname().required(),
   DB_PORT: Joi.number().port().default(5432),
   DB_USER: Joi.string().required(),
