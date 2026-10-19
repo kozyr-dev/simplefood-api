@@ -12,7 +12,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-simplefood}
     ports:
       # Bound to localhost only, so the DB is never exposed on the network.
-      - '127.0.0.1:${POSTGRES_PORT:-5433}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
