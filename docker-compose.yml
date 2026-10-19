@@ -1,0 +1,33 @@
+# Local development infrastructure.
+# The API itself runs on the host (`npm run start:dev`); production compose comes later.
+name: simplefood
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-simplefood}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-simplefood}
+      POSTGRES_DB: ${POSTGRES_DB:-simplefood}
+    ports:
+      # Bound to localhost only, so the DB is never exposed on the network.
+      - '127.0.0.1:${POSTGRES_PORT:-5433}:5433'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    # Catches all outgoing email in dev. Web UI: http://localhost:8025
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
+      - '127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025'
+
+volumes:
+  postgres-data:
