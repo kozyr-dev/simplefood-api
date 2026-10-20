@@ -5,9 +5,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
+import { Logger } from 'nestjs-pino';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TrimPipe } from './common/pipes/trim.pipe';
 import { flattenValidationErrors } from './common/validation/flatten-validation-errors';
+import { REQUEST_ID_HEADER } from './common/logging/constants';
 
 /**
  * HTTP pipeline shared by main.ts and the e2e tests, so tests exercise the
@@ -25,11 +27,14 @@ export function configureApp(app: INestApplication): void {
   // so load balancers and uptime checks don't depend on the API's URL layout.
   app.setGlobalPrefix('api', { exclude: ['health'] });
 
+  app.useLogger(app.get(Logger));
+
   app.enableCors({
     origin: config
       .getOrThrow<string>('CORS_ORIGINS')
       .split(',')
       .map((origin) => origin.trim()),
+    exposedHeaders: [REQUEST_ID_HEADER],
   });
 
   // Pipes run in this order: trim first, so validators see trimmed values.

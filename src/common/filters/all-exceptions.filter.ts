@@ -7,6 +7,8 @@ import {
   Logger,
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { genReqId } from '../logging/request-id';
 
 /** The one error shape every endpoint returns. */
 export interface ErrorResponseBody {
@@ -15,12 +17,16 @@ export interface ErrorResponseBody {
     /** Machine-readable: `NOT_FOUND`, `BAD_REQUEST`, or a custom code such as `EMAIL_TAKEN`. */
     code: string;
     message: string;
+    /** Same as the `X-Request-Id` response header; lets users quote the request when reporting a problem. */
+    requestId: string;
     /** Per-field problems; only present for validation errors. */
     details?: unknown[];
     /** Set when `details` was capped. */
     truncated?: true;
   };
 }
+
+type ErrorPayload = Omit<ErrorResponseBody['error'], 'requestId'>;
 
 /**
  * Catches everything (`@Catch()` with no arguments) and replies with
@@ -37,20 +43,36 @@ export class AllExceptionsFilter implements ExceptionFilter {
     // Resolved here, not in the constructor: the adapter may not exist yet then.
     const { httpAdapter } = this.httpAdapterHost;
     const ctx = host.switchToHttp();
-    const body = this.toBody(exception);
+    const request = ctx.getRequest<IncomingMessage>();
+    const response = ctx.getResponse<ServerResponse>();
+    const payload = this.toPayload(exception);
+    const { status } = payload;
+    const route = `${httpAdapter.getRequestMethod(request)} ${httpAdapter.getRequestUrl(request)} -> ${status}`;
 
-    if (body.error.status >= HttpStatus.INTERNAL_SERVER_ERROR) {
-      const request = ctx.getRequest();
+    // pino-http sets `request.id`. It's missing when the request failed before
+    // that middleware ran (body parsing, malformed URL): give it an ID now (this
+    // also sets the X-Request-Id header) and log it here, since pino-http won't.
+    // (Our genReqId always returns a string; pino-http types the ID more loosely.)
+    const seenByPinoHttp = request.id !== undefined;
+    const requestId =
+      typeof request.id === 'string' ? request.id : genReqId(request, response);
+
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `${httpAdapter.getRequestMethod(request)} ${httpAdapter.getRequestUrl(request)} -> ${body.error.status}`,
+        route,
         exception instanceof Error ? exception.stack : String(exception),
+      );
+    } else if (!seenByPinoHttp) {
+      this.logger.warn(
+        `${route} (rejected before routing, reqId=${requestId})`,
       );
     }
 
-    httpAdapter.reply(ctx.getResponse(), body, body.error.status);
+    const body: ErrorResponseBody = { error: { ...payload, requestId } };
+    httpAdapter.reply(response, body, status);
   }
 
-  private toBody(exception: unknown): ErrorResponseBody {
+  private toPayload(exception: unknown): ErrorPayload {
     if (exception instanceof HttpException) {
       return this.fromHttpException(exception);
     }
@@ -63,7 +85,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return error(HttpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
   }
 
-  private fromHttpException(exception: HttpException): ErrorResponseBody {
+  private fromHttpException(exception: HttpException): ErrorPayload {
     const status = exception.getStatus();
     const response = exception.getResponse();
 
@@ -100,7 +122,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
    * parser errors (body too large, unsupported charset/encoding) arrive as-is:
    * not HttpExceptions, but with a 4xx `status` and an `entity.*` `type`.
    */
-  private fromBodyParserError(exception: unknown): ErrorResponseBody | null {
+  private fromBodyParserError(exception: unknown): ErrorPayload | null {
     if (typeof exception !== 'object' || exception === null) return null;
 
     const { status, type } = exception as { status?: unknown; type?: unknown };
@@ -121,14 +143,12 @@ function error(
   status: number,
   message: string,
   extra: { code?: string; details?: unknown[]; truncated?: true } = {},
-): ErrorResponseBody {
+): ErrorPayload {
   return {
-    error: {
-      status,
-      code: extra.code ?? HttpStatus[status] ?? 'ERROR',
-      message,
-      ...(extra.details && { details: extra.details }),
-      ...(extra.truncated && { truncated: true as const }),
-    },
+    status,
+    code: extra.code ?? HttpStatus[status] ?? 'ERROR',
+    message,
+    ...(extra.details && { details: extra.details }),
+    ...(extra.truncated && { truncated: true as const }),
   };
 }

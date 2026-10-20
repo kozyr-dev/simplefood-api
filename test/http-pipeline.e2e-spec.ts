@@ -85,8 +85,10 @@ describe('HTTP pipeline (e2e)', () => {
       controllers: [PipelineTestController],
     }).compile();
 
-    // Keep the expected 500 stack trace out of the test output.
-    app = moduleFixture.createNestApplication({ logger: false });
+    // No `logger` option: configureApp() switches to pino, whose level is
+    // `silent` under NODE_ENV=test, which keeps the expected 500 stack trace
+    // (and all request lines) out of the test output.
+    app = moduleFixture.createNestApplication();
     configureApp(app);
     await app.init();
   });
@@ -167,6 +169,7 @@ describe('HTTP pipeline (e2e)', () => {
         error: {
           status: 400,
           code: 'BAD_REQUEST',
+          requestId: expect.any(String),
           message: 'Validation failed',
           details: [
             { field: 'role', messages: ['property role should not exist'] },
@@ -243,6 +246,7 @@ describe('HTTP pipeline (e2e)', () => {
         error: {
           status: 404,
           code: 'NOT_FOUND',
+          requestId: expect.any(String),
           message: 'Cannot GET /api/does-not-exist',
         },
       });
@@ -255,6 +259,7 @@ describe('HTTP pipeline (e2e)', () => {
         error: {
           status: 500,
           code: 'INTERNAL_SERVER_ERROR',
+          requestId: expect.any(String),
           message: 'Internal server error',
         },
       });
@@ -275,6 +280,7 @@ describe('HTTP pipeline (e2e)', () => {
         error: {
           status: 400,
           code: 'BAD_REQUEST',
+          requestId: expect.any(String),
           message: expect.any(String),
         },
       });
@@ -291,6 +297,7 @@ describe('HTTP pipeline (e2e)', () => {
         error: {
           status: 413,
           code: 'PAYLOAD_TOO_LARGE',
+          requestId: expect.any(String),
           message: 'Request body too large',
         },
       });

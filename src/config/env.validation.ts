@@ -6,6 +6,17 @@ const validationSchema = Joi.object({
     .default('development'),
   // 1339, not 1338: the legacy Strapi API uses 1338 and both run side by side during migration.
   PORT: Joi.number().port().default(1339),
+  // Pino log level. Optional: when unset, config/logger.config.ts picks one per
+  // NODE_ENV (test: silent, development: debug, production: info).
+  LOG_LEVEL: Joi.string().valid(
+    'fatal',
+    'error',
+    'warn',
+    'info',
+    'debug',
+    'trace',
+    'silent',
+  ),
   // Read by the `database` namespace in config/database.config.ts.
   DB_HOST: Joi.string().hostname().required(),
   DB_PORT: Joi.number().port().default(5432),
