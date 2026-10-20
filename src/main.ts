@@ -5,14 +5,13 @@ import { configureApp } from './app.setup';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Security headers, /api prefix, CORS, pipes and filters: see app.setup.ts.
   configureApp(app);
 
   // Run onModuleDestroy/onApplicationShutdown on SIGTERM/SIGINT (e.g. `docker stop`),
   // so DB connections close cleanly.
   app.enableShutdownHooks();
-
-  // Apply security headers to all responses.
-  app.useSecurityHeaders();
 
   await app.listen(app.get(ConfigService).getOrThrow<number>('PORT'));
 }

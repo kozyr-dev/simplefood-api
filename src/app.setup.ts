@@ -1,14 +1,25 @@
-import { INestApplication } from '@nestjs/common';
+import {
+  BadRequestException,
+  INestApplication,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { HttpAdapterHost } from '@nestjs/core';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { TrimPipe } from './common/pipes/trim.pipe';
+import { flattenValidationErrors } from './common/validation/flatten-validation-errors';
 
 /**
  * HTTP pipeline shared by main.ts and the e2e tests, so tests exercise the
- * exact routes and middleware production uses. Add helmet, ValidationPipe,
- * exception filters etc. here. Process-level concerns (shutdown hooks,
- * listen) stay in main.ts.
+ * exact routes, headers, pipes and filters production uses. Process-level
+ * concerns (shutdown hooks, listen) stay in main.ts.
  */
 export function configureApp(app: INestApplication): void {
-  const config = app.get(ConfigService);
+  const config: ConfigService = app.get(ConfigService);
+
+  // First, so every response gets the headers, including CORS preflights,
+  // 404s and errors (on Express, middleware added earlier would skip them).
+  app.useSecurityHeaders();
 
   // Public API under /api; infrastructure probes (/health) stay at the root,
   // so load balancers and uptime checks don't depend on the API's URL layout.
@@ -20,4 +31,26 @@ export function configureApp(app: INestApplication): void {
       .split(',')
       .map((origin) => origin.trim()),
   });
+
+  // Pipes run in this order: trim first, so validators see trimmed values.
+  app.useGlobalPipes(
+    new TrimPipe(),
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      // No silent coercion ("false" -> true, "abc" -> NaN); use @Type() explicitly.
+      transformOptions: { enableImplicitConversion: false },
+      exceptionFactory: (errors) => {
+        const { details, truncated } = flattenValidationErrors(errors);
+        return new BadRequestException({
+          message: 'Validation failed',
+          details,
+          ...(truncated && { truncated }),
+        });
+      },
+    }),
+  );
+
+  app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
 }

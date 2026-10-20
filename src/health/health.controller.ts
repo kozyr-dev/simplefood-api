@@ -1,11 +1,13 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, UseFilters } from '@nestjs/common';
 import {
   HealthCheck,
   HealthCheckService,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
+import { HealthCheckFilter } from './health-check.filter';
 
 @Controller('health')
+@UseFilters(HealthCheckFilter)
 export class HealthController {
   constructor(
     private readonly health: HealthCheckService,
