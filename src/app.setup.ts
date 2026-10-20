@@ -10,6 +10,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TrimPipe } from './common/pipes/trim.pipe';
 import { flattenValidationErrors } from './common/validation/flatten-validation-errors';
 import { REQUEST_ID_HEADER } from './common/logging/constants';
+import { setupSwagger } from './config/swagger.config';
 
 /**
  * HTTP pipeline shared by main.ts and the e2e tests, so tests exercise the
@@ -58,4 +59,9 @@ export function configureApp(app: INestApplication): void {
   );
 
   app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
+
+  // Off unless explicitly enabled: the docs list the whole API surface.
+  if (config.get<boolean>('SWAGGER_ENABLED')) {
+    setupSwagger(app);
+  }
 }

@@ -1,4 +1,5 @@
 import { Controller, Get, UseFilters } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import {
   HealthCheck,
   HealthCheckService,
@@ -6,6 +7,9 @@ import {
 } from '@nestjs/terminus';
 import { HealthCheckFilter } from './health-check.filter';
 
+// Explicit tag (not the auto-generated "Health"): renaming the class must not
+// rename the public docs section or the group in generated frontend clients.
+@ApiTags('health')
 @Controller('health')
 @UseFilters(HealthCheckFilter)
 export class HealthController {

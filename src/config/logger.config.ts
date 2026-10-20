@@ -3,6 +3,7 @@ import { registerAs } from '@nestjs/config';
 import type { Params } from 'nestjs-pino';
 import type { LevelWithSilent } from 'pino';
 import { genReqId } from '../common/logging/request-id';
+import { SWAGGER_PATH } from './swagger.config';
 
 /** Used when LOG_LEVEL is unset (see config/env.validation.ts). */
 const DEFAULT_LEVEL: Record<string, LevelWithSilent> = {
@@ -51,9 +52,10 @@ export default registerAs('logger', (): Params => {
       // One line per request, at a level matching its outcome.
       customLogLevel: requestLogLevel,
 
-      // Probes call /health every few seconds; their request lines would drown
-      // out real traffic. (Logs written *during* those requests still appear.)
-      autoLogging: { ignore: isHealthCheck },
+      // No "request completed" line for health probes (every few seconds) and
+      // the API docs (one page load = ~7 asset requests): they would drown out
+      // real traffic. Logs written *during* those requests still appear.
+      autoLogging: { ignore: isUnloggedRequest },
 
       // Reuses a safe incoming X-Request-Id or generates a UUID, and echoes it
       // in the response header (see common/logging/request-id.ts).
@@ -75,6 +77,24 @@ export function requestLogLevel(
   return 'info';
 }
 
+const pathOf = (req: IncomingMessage) => req.url?.split('?')[0];
+
 export function isHealthCheck(req: IncomingMessage): boolean {
-  return req.method === 'GET' && req.url?.split('?')[0] === '/health';
+  return req.method === 'GET' && pathOf(req) === '/health';
+}
+
+/** Swagger UI (`/api/docs`), its assets (`/api/docs/*`) and the JSON (`/api/docs-json`). */
+export function isApiDocsRequest(req: IncomingMessage): boolean {
+  if (req.method !== 'GET') return false;
+  const path = pathOf(req);
+  const docs = `/${SWAGGER_PATH}`;
+  return (
+    path === docs ||
+    path === `${docs}-json` ||
+    (path?.startsWith(`${docs}/`) ?? false)
+  );
+}
+
+export function isUnloggedRequest(req: IncomingMessage): boolean {
+  return isHealthCheck(req) || isApiDocsRequest(req);
 }

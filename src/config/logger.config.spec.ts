@@ -4,7 +4,9 @@ import type { Options } from 'pino-http';
 import pino from 'pino';
 import { genReqId } from '../common/logging/request-id';
 import loggerConfig, {
+  isApiDocsRequest,
   isHealthCheck,
+  isUnloggedRequest,
   REDACTED_PATHS,
   requestLogLevel,
 } from './logger.config';
@@ -141,6 +143,46 @@ describe('logger config', () => {
       expect(isHealthCheck(req('GET', '/api/health'))).toBe(false);
       expect(isHealthCheck(req('GET', '/healthz'))).toBe(false);
       expect(isHealthCheck(req('POST', '/health'))).toBe(false);
+    });
+  });
+
+  describe('isApiDocsRequest', () => {
+    const req = (method: string, url: string) =>
+      ({ method, url }) as IncomingMessage;
+
+    it.each([
+      '/api/docs',
+      '/api/docs-json',
+      '/api/docs/swagger-ui-bundle.js',
+      '/api/docs/swagger-ui.css?v=1',
+    ])('matches GET %s', (url) => {
+      expect(isApiDocsRequest(req('GET', url))).toBe(true);
+    });
+
+    it.each(['/api/docsearch', '/api/docs-yaml', '/api', '/docs'])(
+      'does not match GET %s',
+      (url) => {
+        expect(isApiDocsRequest(req('GET', url))).toBe(false);
+      },
+    );
+
+    it('does not match other methods', () => {
+      expect(isApiDocsRequest(req('POST', '/api/docs'))).toBe(false);
+    });
+  });
+
+  describe('isUnloggedRequest', () => {
+    const req = (url: string) => ({ method: 'GET', url }) as IncomingMessage;
+
+    it('skips health probes and the API docs, logs everything else', () => {
+      expect(isUnloggedRequest(req('/health'))).toBe(true);
+      expect(isUnloggedRequest(req('/api/docs/swagger-ui-init.js'))).toBe(true);
+      expect(isUnloggedRequest(req('/api/orders'))).toBe(false);
+    });
+
+    it('is what the logger config uses', () => {
+      const options = loggerConfig().pinoHttp as Options;
+      expect(options.autoLogging).toEqual({ ignore: isUnloggedRequest });
     });
   });
 });

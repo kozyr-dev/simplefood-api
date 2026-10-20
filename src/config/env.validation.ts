@@ -28,6 +28,8 @@ const validationSchema = Joi.object({
   CORS_ORIGINS: Joi.string().required(),
   SMTP_HOST: Joi.string().hostname().required(),
   SMTP_PORT: Joi.number().port().required(),
+  // Enable or disable Swagger documentation.
+  SWAGGER_ENABLED: Joi.boolean().default(false),
 });
 
 export default validationSchema;
