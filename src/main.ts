@@ -11,6 +11,9 @@ async function bootstrap() {
   // so DB connections close cleanly.
   app.enableShutdownHooks();
 
+  // Apply security headers to all responses.
+  app.useSecurityHeaders();
+
   await app.listen(app.get(ConfigService).getOrThrow<number>('PORT'));
 }
 void bootstrap();
