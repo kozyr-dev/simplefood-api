@@ -149,6 +149,8 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
 
 0. **Now:** fix the Strapi public and authenticated permissions (see Context).
 1. **Scaffold.** Set up the Nest app, config, TypeORM with Postgres in `docker-compose` (api, postgres, volume for uploads), migrations, health check, Swagger, and CI (lint, tests).
+   - ✅ Done (2026-10-21): Node 24 / Nest 12 scaffold, Postgres 18 + Mailpit in Docker Compose, Joi-validated config (`registerAs` namespaces), TypeORM 1.x with migrations and a snake_case naming strategy, `/health`, security headers, validation pipe and a single error shape, `nestjs-pino` logging with request IDs, Swagger at `/api/docs`, and GitHub Actions CI (e2e tests and migration checks run on Testcontainers).
+   - The production Docker image moved to phase 9, where the app is ready to deploy. Only `.dockerignore` exists so far.
 2. **Core domain.** Build the entities, the first migration, and the read endpoints (catalog, content, blog, settings, menus) with the section resolver.
 3. **Auth and users.** Add rotating refresh tokens, guards, and the roles admin, editor and customer.
 4. **Orders, contact and mail.** Server-side pricing, order items, throttling, and email notifications.
@@ -157,6 +159,14 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
 7. **AdminJS.** CRUD resources first, then auth, then the section editor (JSON first, then per-type forms), then the dashboard.
 8. **Frontend adaptation** on a branch, run against the local Nest API.
 9. **Cutover.**
+   - **Production Docker image first** (moved here from phase 1). `.dockerignore` already exists: an allow-list of `package*.json`, `src/`, `nest-cli.json` and the tsconfigs.
+     - **`Dockerfile`, 3 stages on `node:24-alpine`:** `build` (`npm ci`, `nest build`, so the Swagger plugin runs); `deps` (`npm ci --omit=dev`); `runtime`. Use npm cache mounts and bind-mounted `package*.json`. If `sharp` (phase 5) has trouble on Alpine's musl, switch to `bookworm-slim`.
+     - **Runtime stage:** `NODE_ENV=production`, `NODE_OPTIONS=--enable-source-maps`. Copy `dist/`, production `node_modules` and **`package.json`** (the Swagger version reads it) with `--chown=node:node`, then `USER node` and `EXPOSE 1339`. Use `CMD ["node", "dist/main.js"]` in exec form, never `npm start`, so SIGTERM reaches Node and the shutdown hooks run. Run with `init: true` (or `--init`).
+     - **Health check:** a small `src/healthcheck.ts` that `fetch`es `/health` with a 2 s timeout and exits 0 or 1 (Alpine has no curl). `HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --start-interval=2s --retries=3 CMD ["node", "dist/healthcheck.js"]`.
+     - **Migrations:** add a `migration:run:prod` script (`typeorm migration:run -d dist/database/data-source.js`, no build) and run it as a one-off container from the same image before starting the new version.
+     - **Architecture:** Apple Silicon builds `linux/arm64`. Build in CI (amd64) or with `--platform linux/amd64`, and check `uname -m` on the VPS.
+     - **CI:** add a `docker` job that builds the image, starts it next to a Postgres container, waits for `healthy`, and checks `/health`. Publish to GHCR with commit-SHA tags (for rollbacks) in the deploy workflow.
+     - **Done when:** the image is under about 250 MB; it has no dev tools, sources or `.env`; it runs as `uid=1000(node)`; it refuses to start with bad config; it turns healthy; it writes JSON logs; `docker stop` takes about a second; migrations run from the image; stack traces point to `src/*.ts`. Also look at `docker scout cves` and Docker Hardened Images.
    - Deploy Postgres and the API with Docker Compose on the VPS, behind the same `api-simplefood.kozyr.info` domain.
    - Freeze Strapi edits, run the migration, smoke-test, and switch over.
    - Keep Strapi and the SQLite file for rollback for about 2 weeks.
