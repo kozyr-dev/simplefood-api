@@ -1,0 +1,22 @@
+# Weekly update PRs, each checked by CI before you merge it.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for all @nestjs/* packages: they're released together and
+      # mixing versions breaks peer dependencies.
+      nestjs:
+        patterns: ['@nestjs/*']
+      # One PR for the rest of the dev tooling.
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

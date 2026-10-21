@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { registerAs } from '@nestjs/config';
 import { DataSourceOptions } from 'typeorm';
 import { SnakeNamingStrategy } from '../database/snake-naming.strategy';
@@ -12,8 +12,13 @@ import { SnakeNamingStrategy } from '../database/snake-naming.strategy';
  * schema (config/env.validation.ts) and fills in defaults before any
  * `registerAs` factory runs. data-source.ts does the same for the CLI.
  *
- * Globs point at compiled `.js` files; `__dirname` is `dist/config` at runtime.
+ * Globs use the extension of this very file: `.js` when running the build
+ * (`__dirname` is `dist/config`), `.ts` under Jest (`src/config`), so the e2e
+ * tests can run the real migrations. Not `*.{js,ts}`: in `dist/` that would
+ * also match the `.d.ts` declaration files the build emits.
  */
+const ext = extname(__filename); // '.js' or '.ts'
+
 export default registerAs('database', (): DataSourceOptions => ({
   type: 'postgres',
   host: process.env.DB_HOST,
@@ -24,7 +29,7 @@ export default registerAs('database', (): DataSourceOptions => ({
   applicationName: 'simplefood-api',
   namingStrategy: new SnakeNamingStrategy(),
 
-  entities: [join(__dirname, '..', '**', '*.entity.js')],
+  entities: [join(__dirname, '..', '**', `*.entity${ext}`)],
 
   // Schema changes only via reviewed migrations, never auto-sync.
   synchronize: false,
@@ -34,5 +39,5 @@ export default registerAs('database', (): DataSourceOptions => ({
   migrationsTableName: 'migrations',
   // Migrations run as an explicit deploy step (`npm run migration:run`), not on boot.
   migrationsRun: false,
-  migrations: [join(__dirname, '..', 'database', 'migrations', '*.js')],
+  migrations: [join(__dirname, '..', 'database', 'migrations', `*${ext}`)],
 }));

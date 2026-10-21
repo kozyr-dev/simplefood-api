@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same PR/branch cancels the run that's still going.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: CI only needs to read the code.
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Lint, build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc # same Node as local dev and production
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Fast checks first, so a typo fails in seconds, not after the tests.
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Type-check (including tests)
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test -- --ci
+
+      # Starts a throwaway Postgres 18 with Testcontainers (Docker is
+      # preinstalled on ubuntu-latest), applies the migrations, and checks
+      # them (up, schema in sync with the entities, down). No env needed:
+      # test/setup/global-setup.ts sets the whole test environment.
+      - name: E2E tests
+        run: npm run test:e2e -- --ci
+
+      # Known vulnerabilities in what ships to production (dev tools excluded).
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high

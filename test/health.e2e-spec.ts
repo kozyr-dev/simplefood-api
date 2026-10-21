@@ -5,7 +5,6 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 
-// Needs a reachable Postgres (`docker compose up -d`) until Testcontainers is set up.
 describe('HealthController (e2e)', () => {
   let app: INestApplication<App>;
 
