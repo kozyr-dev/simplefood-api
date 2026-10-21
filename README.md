@@ -57,21 +57,21 @@ The API reads these variables. They are validated at startup in [src/config/env.
 
 ## Scripts
 
-| Command                                                         | What it does                              |
-| --------------------------------------------------------------- | ----------------------------------------- |
-| `npm run start:dev`                                             | Start with watch mode                     |
-| `npm run start:debug`                                           | Start with watch mode and the debugger    |
-| `npm run build` / `npm run start:prod`                          | Compile to `dist/` / run the compiled app |
-| `npm run typecheck`                                             | Type-check everything, tests included     |
-| `npm run lint`                                                  | oxlint (type-aware)                       |
-| `npm run format` / `npm run format:check`                       | Prettier: write / check                   |
-| `npm test`                                                      | Unit tests (no Docker needed)             |
-| `npm run test:watch` / `npm run test:cov`                       | Unit tests in watch mode / with coverage  |
-| `npm run test:debug`                                            | Unit tests with the debugger attached     |
-| `npm run test:e2e`                                              | E2E tests (needs Docker running)          |
-| `npm run migration:generate -- src/database/migrations/<Name>`  | Generate a migration from entity changes  |
-| `npm run migration:create -- src/database/migrations/<Name>`    | Create an empty migration                 |
-| `npm run migration:run` / `migration:revert` / `migration:show` | Apply / undo the last / list migrations   |
+| Command                                                         | What it does                                                                 |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `npm run start:dev`                                             | Start with watch mode                                                        |
+| `npm run start:debug`                                           | Start with watch mode and the debugger                                       |
+| `npm run build` / `npm run start:prod`                          | Compile to `dist/` / run the compiled app                                    |
+| `npm run typecheck`                                             | Type-check everything, tests included                                        |
+| `npm run lint`                                                  | oxlint (type-aware)                                                          |
+| `npm run format` / `npm run format:check`                       | Prettier: write / check                                                      |
+| `npm test`                                                      | Unit tests (no Docker needed)                                                |
+| `npm run test:watch` / `npm run test:cov`                       | Unit tests in watch mode / with coverage (report in `coverage/unit/`)        |
+| `npm run test:debug`                                            | Unit tests with the debugger attached                                        |
+| `npm run test:e2e` / `npm run test:e2e:cov`                     | E2E tests (needs Docker running) / with coverage (report in `coverage/e2e/`) |
+| `npm run migration:generate -- src/database/migrations/<Name>`  | Generate a migration from entity changes                                     |
+| `npm run migration:create -- src/database/migrations/<Name>`    | Create an empty migration                                                    |
+| `npm run migration:run` / `migration:revert` / `migration:show` | Apply / undo the last / list migrations                                      |
 
 The migration scripts (except `create`) build first and use the TypeORM CLI entry point [src/database/data-source.ts](src/database/data-source.ts). That file loads `.env` and validates it with the same schema as the app.
 
@@ -82,6 +82,7 @@ The migration scripts (except `create`) build first and use the TypeORM CLI entr
   - Before they run, [test/setup/global-setup.ts](test/setup/global-setup.ts) starts a **throwaway Postgres 18 with Testcontainers**, applies the migrations, and sets the test environment. The e2e tests never touch your dev database, and they don't need `.env`.
   - `test/migrations.e2e-spec.ts` checks the migrations themselves: they apply cleanly, the schema matches the entities, and every `down()` reverts.
 - The `@nestjs/swagger` CLI plugin doesn't run under Jest (`isolatedModules`), so DTO properties only appear in the docs of a real build.
+- **Coverage** is reported separately for each suite (`coverage/unit/`, `coverage/e2e/`), and the two complement each other. Unit tests cover pure logic; controllers, filters and the HTTP pipeline (`app.setup.ts`) are covered by the e2e tests. Both measure the same files: the exclusions (bootstrap, CLI entry, migrations, modules, entities, DTOs) are defined once, as `coverageExclusions` in [jest.config.ts](jest.config.ts).
 
 ## Database migrations
 

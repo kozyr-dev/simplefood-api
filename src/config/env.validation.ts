@@ -19,7 +19,8 @@ const validationSchema = Joi.object({
   ),
   // Read by the `database` namespace in config/database.config.ts.
   DB_HOST: Joi.string().hostname().required(),
-  DB_PORT: Joi.number().port().default(5432),
+  // min(1): port() allows 0 ("any free port"), valid to listen on, not to connect to.
+  DB_PORT: Joi.number().port().min(1).default(5432),
   DB_USER: Joi.string().required(),
   DB_PASSWORD: Joi.string().required(),
   DB_NAME: Joi.string().required(),
