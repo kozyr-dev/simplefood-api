@@ -1,9 +1,9 @@
 import * as Joi from 'joi';
 
 const validationSchema = Joi.object({
-  NODE_ENV: Joi.string()
-    .valid('development', 'production', 'test')
-    .default('development'),
+  // Required, no default: a production deploy that forgets it must fail here,
+  // not run with development settings (pretty logs need the dev-only pino-pretty).
+  NODE_ENV: Joi.string().valid('development', 'production', 'test').required(),
   // 1339, not 1338: the legacy Strapi API uses 1338 and both run side by side during migration.
   PORT: Joi.number().port().default(1339),
   // Pino log level. Optional: when unset, config/logger.config.ts picks one per

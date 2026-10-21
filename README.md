@@ -45,7 +45,7 @@ The API reads these variables. They are validated at startup in [src/config/env.
 
 | Variable                                       | Required | Default        | Purpose                                                                       |
 | ---------------------------------------------- | -------- | -------------- | ----------------------------------------------------------------------------- |
-| `NODE_ENV`                                     | no       | `development`  | `development`, `production` or `test`                                         |
+| `NODE_ENV`                                     | **yes**  |                | `development`, `production` or `test`                                         |
 | `PORT`                                         | no       | `1339`         | HTTP port (`1338` is the legacy Strapi API)                                   |
 | `LOG_LEVEL`                                    | no       | per `NODE_ENV` | pino level; `test` = `silent`, `development` = `debug`, `production` = `info` |
 | `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | **yes**  |                | PostgreSQL connection                                                         |

@@ -31,7 +31,8 @@ export const REDACTED_PATHS = [
  * and phone numbers.
  */
 export default registerAs('logger', (): Params => {
-  const nodeEnv = process.env.NODE_ENV ?? 'development';
+  // Always set (required by the env schema); 'production' is only the safe side.
+  const nodeEnv = process.env.NODE_ENV ?? 'production';
 
   return {
     pinoHttp: {
