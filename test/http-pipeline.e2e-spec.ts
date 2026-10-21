@@ -7,7 +7,6 @@ import {
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
@@ -20,8 +19,7 @@ import {
 } from 'class-validator';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
-import { configureApp } from './../src/app.setup';
+import { createTestApp } from './utils/test-app';
 
 /*
  * Test-only controller: exercises the global pipeline (security headers,
@@ -80,17 +78,9 @@ describe('HTTP pipeline (e2e)', () => {
   let app: INestApplication<App>;
 
   beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-      controllers: [PipelineTestController],
-    }).compile();
-
-    // No `logger` option: configureApp() switches to pino, whose level is
-    // `silent` under NODE_ENV=test, which keeps the expected 500 stack trace
-    // (and all request lines) out of the test output.
-    app = moduleFixture.createNestApplication();
-    configureApp(app);
-    await app.init();
+    // Logs are `silent` under NODE_ENV=test, which keeps the expected 500
+    // stack trace (and all request lines) out of the test output.
+    app = await createTestApp({ controllers: [PipelineTestController] });
   });
 
   afterAll(async () => {
@@ -101,7 +91,7 @@ describe('HTTP pipeline (e2e)', () => {
 
   describe('security headers', () => {
     it('are set and X-Powered-By is removed', async () => {
-      const res = await http().get('/api').expect(200);
+      const res = await http().get('/api/ping').expect(200);
 
       expect(res.headers['x-content-type-options']).toBe('nosniff');
       expect(res.headers['content-security-policy']).toBeDefined();
@@ -118,7 +108,7 @@ describe('HTTP pipeline (e2e)', () => {
   describe('CORS', () => {
     it('allows a configured origin', async () => {
       const res = await http()
-        .get('/api')
+        .get('/api/ping')
         .set('Origin', 'http://localhost:3000');
 
       expect(res.headers['access-control-allow-origin']).toBe(
@@ -128,7 +118,7 @@ describe('HTTP pipeline (e2e)', () => {
 
     it('does not allow other origins (and never a wildcard)', async () => {
       const res = await http()
-        .get('/api')
+        .get('/api/ping')
         .set('Origin', 'https://evil.example');
 
       expect(res.headers['access-control-allow-origin']).toBeUndefined();

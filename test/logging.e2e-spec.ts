@@ -1,14 +1,12 @@
 import { Controller, Get, INestApplication } from '@nestjs/common';
-import { Test, TestingModule } from '@nestjs/testing';
 import { Writable } from 'node:stream';
 import type { Params } from 'nestjs-pino';
 import type { Options } from 'pino-http';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
-import { configureApp } from './../src/app.setup';
-import { REQUEST_ID_HEADER } from './../src/common/logging/constants';
-import loggerConfig from './../src/config/logger.config';
+import { REQUEST_ID_HEADER } from '../src/common/logging/constants';
+import loggerConfig from '../src/config/logger.config';
+import { createTestApp, UUID } from './utils/test-app';
 
 /** Test-only routes; registered only in this testing module. */
 @Controller('logging-test')
@@ -18,9 +16,6 @@ class LoggingTestController {
     throw new Error('connection failed: password=secret123');
   }
 }
-
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 interface LogLine {
   level: number;
@@ -56,17 +51,11 @@ describe('Logging and request IDs (e2e)', () => {
       pinoHttp: [{ ...options, level: 'info' }, sink],
     };
 
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+    app = await createTestApp({
       controllers: [LoggingTestController],
-    })
-      .overrideProvider(loggerConfig.KEY)
-      .useValue(captured)
-      .compile();
-
-    app = moduleFixture.createNestApplication();
-    configureApp(app);
-    await app.init();
+      override: (builder) =>
+        builder.overrideProvider(loggerConfig.KEY).useValue(captured),
+    });
   });
 
   beforeEach(() => {
@@ -82,14 +71,14 @@ describe('Logging and request IDs (e2e)', () => {
 
   describe('X-Request-Id', () => {
     it('is generated when the client sends none', async () => {
-      const res = await http().get('/api').expect(200);
+      const res = await http().get('/api/ping').expect(200);
 
       expect(res.headers['x-request-id']).toMatch(UUID);
     });
 
     it('reuses a valid incoming ID', async () => {
       const res = await http()
-        .get('/api')
+        .get('/api/ping')
         .set(REQUEST_ID_HEADER, 'nginx-abc-123')
         .expect(200);
 
@@ -102,14 +91,16 @@ describe('Logging and request IDs (e2e)', () => {
       ['with spaces', 'not a valid id'],
       ['with JSON characters', 'x"}{"level":60'],
     ])('replaces an incoming ID that is %s', async (_label, incoming) => {
-      const res = await http().get('/api').set(REQUEST_ID_HEADER, incoming);
+      const res = await http()
+        .get('/api/ping')
+        .set(REQUEST_ID_HEADER, incoming);
 
       expect(res.headers['x-request-id']).toMatch(UUID);
     });
 
     it('is exposed to browsers through CORS', async () => {
       const res = await http()
-        .get('/api')
+        .get('/api/ping')
         .set('Origin', 'http://localhost:3000');
 
       expect(res.headers['access-control-expose-headers']).toContain(
@@ -193,7 +184,7 @@ describe('Logging and request IDs (e2e)', () => {
 
     it('redacts credentials', async () => {
       const res = await http()
-        .get('/api')
+        .get('/api/ping')
         .set('Authorization', 'Bearer secret-token')
         .set('Cookie', 'refresh_token=secret-cookie')
         .expect(200);

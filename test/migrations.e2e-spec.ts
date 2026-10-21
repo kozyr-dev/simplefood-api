@@ -1,10 +1,10 @@
 import { DataSource, type DataSourceOptions } from 'typeorm';
-import databaseConfig from './../src/config/database.config';
+import databaseConfig from '../src/config/database.config';
 
 /*
  * Checks the migrations themselves, against the Testcontainers Postgres:
  *  - they all apply to an empty database,
- *  - afterwards the schema matches the entities (what `migration:check` does),
+ *  - afterwards the schema matches the entities (what `typeorm migration:generate --check` checks),
  *  - every `down()` works: revert everything, then apply again.
  *
  * Runs in its own database, so reverting can't disturb the other e2e files,

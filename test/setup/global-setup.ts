@@ -33,10 +33,8 @@ export default async function globalSetup(): Promise<void> {
     DB_USER: container.getUsername(),
     DB_PASSWORD: container.getPassword(),
     DB_NAME: container.getDatabase(),
-    // Required by the env schema; fixed values the tests rely on.
+    // Required by the env schema; a fixed value the CORS tests rely on.
     CORS_ORIGINS: 'http://localhost:3000',
-    SMTP_HOST: 'localhost',
-    SMTP_PORT: '1025',
   });
 
   // Same options the app and the CLI use (read from the env set above).

@@ -1,7 +1,7 @@
 {
-  "name": "api",
+  "name": "simplefood-api",
   "version": "1.0.0",
-  "description": "simplefood api",
+  "description": "SimpleFood REST API (NestJS + PostgreSQL)",
   "author": "Kozyr",
   "private": true,
   "license": "UNLICENSED",
@@ -18,12 +18,10 @@
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
     "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
     "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
-    "test:debug": "node --inspect-brk --experimental-vm-modules -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:debug": "node --inspect-brk --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand",
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
-    "typeorm": "typeorm -d dist/database/data-source.js",
     "migration:create": "typeorm migration:create",
     "migration:generate": "npm run build && typeorm migration:generate -p -d dist/database/data-source.js",
-    "migration:check": "npm run build && typeorm migration:generate --check -d dist/database/data-source.js src/database/migrations/Check",
     "migration:run": "npm run build && typeorm migration:run -d dist/database/data-source.js",
     "migration:revert": "npm run build && typeorm migration:revert -d dist/database/data-source.js",
     "migration:show": "npm run build && typeorm migration:show -d dist/database/data-source.js"
@@ -53,7 +51,6 @@
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
     "@testcontainers/postgresql": "^12.2.1",
-    "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/supertest": "^7.0.0",
@@ -62,13 +59,9 @@
     "oxlint-tsgolint": "^7.0.2001",
     "pino-pretty": "^13.2.0",
     "prettier": "^3.4.2",
-    "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
-    "testcontainers": "^12.2.1",
     "ts-jest": "^29.4.0",
-    "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
     "typescript": "^6.0.2"
   }
 }

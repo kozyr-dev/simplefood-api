@@ -39,11 +39,11 @@ Fix these today in Strapi Admin → Settings → Users & Permissions → Roles.
 - Claude does not implement phases unless the user explicitly asks.
 - This plan lives at `api/docs/backend-migration-plan.md`, under version control. Tick off phases here as they are completed.
 - **Production-grade baseline for every phase:**
-  - strict TypeScript, ESLint and Prettier
+  - strict TypeScript, oxlint and Prettier
   - env validation; migrations only, never `synchronize`
   - DTO validation; consistent error shape
   - structured logging (`nestjs-pino`) with request ids
-  - rate limiting, helmet and CORS
+  - rate limiting, security headers (Nest's built-in `app.useSecurityHeaders()`) and CORS
   - unit and e2e tests in CI
   - graceful shutdown, health checks, a Docker image and database backups
 
@@ -53,10 +53,10 @@ New repo `SimpleFood/api/`, a sibling of `backend/` and `frontend/`. Strapi keep
 
 ```text
 api/src/
-  main.ts            helmet, CORS (localhost:3000, simplefood.kozyr.info), ValidationPipe(whitelist), global prefix /api
-  config/            @nestjs/config + Joi env schema
+  main.ts            bootstrap; app.setup.ts holds the HTTP pipeline (security headers, CORS, ValidationPipe, global prefix /api)
+  config/            @nestjs/config + Joi env schema, registerAs namespaces
   database/          TypeORM DataSource, migrations/ (synchronize: false), seeds/
-  common/            pagination DTO, response envelope {data, meta}, exception filter {error:{status,message}}
+  common/            pagination DTO, response envelope {data, meta}, exception filter {error:{status,code,message,requestId,details?}}
   auth/              local login, register, refresh (rotating, hashed in DB), logout/revoke, JWT guard, Roles guard
   users/             me, update-me (ownership by token, not :id)
   catalog/           products, product-categories
@@ -70,7 +70,7 @@ api/src/
   health/            @nestjs/terminus
 ```
 
-Versions: Node 22 everywhere (`.nvmrc`, Docker, CI). NestJS 11 and TypeORM 0.3 on `pg`.
+Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `pg`, PostgreSQL 18.
 
 ## Data model (TypeORM entities)
 

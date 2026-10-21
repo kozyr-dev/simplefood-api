@@ -1,124 +1,151 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# SimpleFood API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+REST API for the SimpleFood shop. It replaces the legacy Strapi backend and serves the Next.js frontend.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+The migration is planned in phases in [docs/backend-migration-plan.md](docs/backend-migration-plan.md).
 
-## Description
+## Stack
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Area      | Choice                                                                |
+| --------- | --------------------------------------------------------------------- |
+| Runtime   | Node.js 24 (`.nvmrc`)                                                 |
+| Framework | NestJS 12                                                             |
+| Database  | PostgreSQL 18, TypeORM 1.x, migrations only (never `synchronize`)     |
+| Logging   | `nestjs-pino`: JSON in production, pretty in development, request IDs |
+| API docs  | `@nestjs/swagger` (OpenAPI 3)                                         |
+| Tests     | Jest, Supertest, Testcontainers                                       |
+| Quality   | TypeScript strict, oxlint, Prettier, GitHub Actions                   |
 
-## Project setup
+## Requirements
+
+- **Node.js 24**: `nvm use` reads `.nvmrc`.
+- **Docker**: runs the local database and Mailpit, and the e2e tests start their own throwaway Postgres.
+
+## Getting started
 
 ```bash
-$ npm install
+nvm use
+cp .env.example .env         # local settings; adjust if ports clash
+docker compose up -d         # Postgres 18 (port 5433) + Mailpit
+npm ci
+npm run migration:run        # apply the database migrations
+npm run start:dev            # http://localhost:1339
 ```
 
-## Compile and run the project
+| URL                              | What                                                               |
+| -------------------------------- | ------------------------------------------------------------------ |
+| <http://localhost:1339/api>      | API (every route is under `/api`)                                  |
+| <http://localhost:1339/api/docs> | Swagger UI, when `SWAGGER_ENABLED=true` (JSON at `/api/docs-json`) |
+| <http://localhost:1339/health>   | Health check (outside `/api`; `503` when the database is down)     |
+| <http://localhost:8025>          | Mailpit: catches every email sent in development                   |
 
-```bash
-# development
-$ npm run start
+## Configuration
 
-# watch mode
-$ npm run start:dev
+The API reads these variables. They are validated at startup in [src/config/env.validation.ts](src/config/env.validation.ts), and the app refuses to start if one is missing or invalid. Real environment variables take precedence over `.env`.
 
-# production mode
-$ npm run start:prod
+| Variable                                       | Required | Default        | Purpose                                                                       |
+| ---------------------------------------------- | -------- | -------------- | ----------------------------------------------------------------------------- |
+| `NODE_ENV`                                     | no       | `development`  | `development`, `production` or `test`                                         |
+| `PORT`                                         | no       | `1339`         | HTTP port (`1338` is the legacy Strapi API)                                   |
+| `LOG_LEVEL`                                    | no       | per `NODE_ENV` | pino level; `test` = `silent`, `development` = `debug`, `production` = `info` |
+| `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | **yes**  |                | PostgreSQL connection                                                         |
+| `DB_PORT`                                      | no       | `5432`         | PostgreSQL port (`5433` locally, see `.env.example`)                          |
+| `CORS_ORIGINS`                                 | **yes**  |                | Comma-separated list of allowed browser origins                               |
+| `SWAGGER_ENABLED`                              | no       | `false`        | Serve the API docs. Keep it off in production.                                |
+
+`POSTGRES_*` and `MAILPIT_*` in `.env` only configure Docker Compose; the API doesn't read them.
+
+## Scripts
+
+| Command                                                         | What it does                              |
+| --------------------------------------------------------------- | ----------------------------------------- |
+| `npm run start:dev`                                             | Start with watch mode                     |
+| `npm run start:debug`                                           | Start with watch mode and the debugger    |
+| `npm run build` / `npm run start:prod`                          | Compile to `dist/` / run the compiled app |
+| `npm run typecheck`                                             | Type-check everything, tests included     |
+| `npm run lint`                                                  | oxlint (type-aware)                       |
+| `npm run format` / `npm run format:check`                       | Prettier: write / check                   |
+| `npm test`                                                      | Unit tests (no Docker needed)             |
+| `npm run test:watch` / `npm run test:cov`                       | Unit tests in watch mode / with coverage  |
+| `npm run test:debug`                                            | Unit tests with the debugger attached     |
+| `npm run test:e2e`                                              | E2E tests (needs Docker running)          |
+| `npm run migration:generate -- src/database/migrations/<Name>`  | Generate a migration from entity changes  |
+| `npm run migration:create -- src/database/migrations/<Name>`    | Create an empty migration                 |
+| `npm run migration:run` / `migration:revert` / `migration:show` | Apply / undo the last / list migrations   |
+
+The migration scripts (except `create`) build first and use the TypeORM CLI entry point [src/database/data-source.ts](src/database/data-source.ts). That file loads `.env` and validates it with the same schema as the app.
+
+## Testing
+
+- **Unit tests** (`src/**/*.spec.ts`) cover pure logic: no database and no Docker.
+- **E2E tests** (`test/**/*.e2e-spec.ts`) boot the real app through `createTestApp()` in [test/utils/test-app.ts](test/utils/test-app.ts). It applies the same `configureApp()` pipeline as production.
+  - Before they run, [test/setup/global-setup.ts](test/setup/global-setup.ts) starts a **throwaway Postgres 18 with Testcontainers**, applies the migrations, and sets the test environment. The e2e tests never touch your dev database, and they don't need `.env`.
+  - `test/migrations.e2e-spec.ts` checks the migrations themselves: they apply cleanly, the schema matches the entities, and every `down()` reverts.
+- The `@nestjs/swagger` CLI plugin doesn't run under Jest (`isolatedModules`), so DTO properties only appear in the docs of a real build.
+
+## Database migrations
+
+The schema changes **only** through reviewed migration files in `src/database/migrations/`.
+
+1. Change or add an entity (`*.entity.ts`). Column and table names become snake_case automatically.
+2. `npm run migration:generate -- src/database/migrations/AddProducts`
+3. Review the generated SQL, including `down()`, and commit it with the entity change.
+4. `npm run migration:run`
+
+The app never runs migrations on startup. In production they run as a separate step before the new version starts. CI fails if an entity changed without a migration, or if a `down()` doesn't revert.
+
+## Project structure
+
+```text
+src/
+  main.ts           bootstrap: configureApp(), shutdown hooks, listen
+  app.setup.ts      HTTP pipeline shared with the e2e tests: security headers, /api prefix,
+                    logger, CORS, pipes, exception filter, Swagger
+  app.module.ts     root module: config, database, logger, feature modules
+  config/           env schema and `registerAs` namespaces (database, logger), Swagger setup
+  common/           cross-cutting code: exception filter + error DTOs, request IDs, pipes,
+                    validation error formatting
+  database/         TypeORM CLI data source, naming strategy, migrations/
+  health/           GET /health (Terminus)
+test/
+  setup/            Testcontainers global setup/teardown
+  utils/            createTestApp() and other e2e helpers
+  *.e2e-spec.ts     e2e suites
+docs/               migration plan
 ```
 
-## Run tests
+## Conventions
 
-```bash
-# unit tests
-$ npm run test
+- **Routes:** everything is under `/api`, except `/health`, which stays at the root for infrastructure probes.
+- **HTTP-level settings** (headers, CORS, pipes, filters) go in `configureApp()` in [src/app.setup.ts](src/app.setup.ts), so the e2e tests use exactly what production uses.
+- **Errors** always have one shape (documented as `ErrorResponseDto` in Swagger):
 
-# e2e tests
-$ npm run test:e2e
+  ```json
+  {
+    "error": {
+      "status": 400,
+      "code": "BAD_REQUEST",
+      "message": "Validation failed",
+      "requestId": "6ed2444b-8405-40b9-affa-d1db395c4c83",
+      "details": [{ "field": "email", "messages": ["email must be an email"] }]
+    }
+  }
+  ```
 
-# test coverage
-$ npm run test:cov
-```
+  Unexpected errors return a generic `500` message; the real cause is only logged.
 
-## Deployment
+- **Validation:** request DTOs use `class-validator`. Unknown properties are rejected, there's no implicit type conversion, and strings are trimmed (except fields whose name contains `password`).
+- **Request IDs:** every response has an `X-Request-Id` header, and every log line of that request has the same `reqId`. A safe incoming `X-Request-Id` is reused.
+- **Logging:** use `new Logger(MyClass.name)` from `@nestjs/common`; it goes through pino automatically. `Authorization` and `Cookie` headers are redacted. Never log request bodies.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## CI
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+[.github/workflows/ci.yml](.github/workflows/ci.yml) runs on pull requests and pushes to `main`:
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+format check → typecheck → lint → build → unit tests → e2e tests (Testcontainers) → `npm audit` of production dependencies.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
-
-```bash
-$ npm install @nestjs/observe
-```
-
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+Dependabot opens weekly update PRs for npm packages and GitHub Actions.
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Private project; all rights reserved (`UNLICENSED`).

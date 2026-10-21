@@ -26,9 +26,7 @@ const validationSchema = Joi.object({
   // Comma-separated list, e.g. "http://localhost:3000,https://simplefood.kozyr.info".
   // Required on purpose: no permissive fallback if it is forgotten in production.
   CORS_ORIGINS: Joi.string().required(),
-  SMTP_HOST: Joi.string().hostname().required(),
-  SMTP_PORT: Joi.number().port().required(),
-  // Enable or disable Swagger documentation.
+  // Swagger UI at /api/docs. Off by default: the docs list the whole API surface.
   SWAGGER_ENABLED: Joi.boolean().default(false),
 });
 

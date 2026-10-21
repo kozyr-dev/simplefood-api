@@ -12,10 +12,9 @@ import { SnakeNamingStrategy } from '../database/snake-naming.strategy';
  * schema (config/env.validation.ts) and fills in defaults before any
  * `registerAs` factory runs. data-source.ts does the same for the CLI.
  *
- * Globs use the extension of this very file: `.js` when running the build
- * (`__dirname` is `dist/config`), `.ts` under Jest (`src/config`), so the e2e
- * tests can run the real migrations. Not `*.{js,ts}`: in `dist/` that would
- * also match the `.d.ts` declaration files the build emits.
+ * Globs use the extension of this very file: the app and the CLI load the
+ * compiled `.js` files from `dist/`, and the e2e tests (Jest, running from
+ * `src/`) load the `.ts` sources, so they run the real migrations too.
  */
 const ext = extname(__filename); // '.js' or '.ts'
 

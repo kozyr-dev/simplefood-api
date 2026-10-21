@@ -1,49 +1,36 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Test } from '@nestjs/testing';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from './../src/app.module';
-import { configureApp } from './../src/app.setup';
+import { readApiVersion } from '../src/config/swagger.config';
+import { createTestApp } from './utils/test-app';
 
 /**
  * Builds the app with SWAGGER_ENABLED forced on or off, so these tests don't
  * depend on whatever `.env` (or the CI environment) sets. Every other config
  * value is the real one.
  */
-async function createApp(
-  swaggerEnabled: boolean,
-): Promise<INestApplication<App>> {
-  const moduleFixture = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-
-  const app = moduleFixture.createNestApplication<INestApplication<App>>();
-  const config = app.get(ConfigService);
-  const realGet = config.get.bind(config);
-  jest
-    .spyOn(config, 'get')
-    .mockImplementation((key: string) =>
-      key === 'SWAGGER_ENABLED' ? swaggerEnabled : realGet(key),
-    );
-
-  configureApp(app);
-  await app.init();
-  return app;
+function createApp(swaggerEnabled: boolean): Promise<INestApplication<App>> {
+  return createTestApp({
+    beforeConfigure: (app) => {
+      const config = app.get(ConfigService);
+      const realGet = config.get.bind(config);
+      jest
+        .spyOn(config, 'get')
+        .mockImplementation((key: string) =>
+          key === 'SWAGGER_ENABLED' ? swaggerEnabled : realGet(key),
+        );
+    },
+  });
 }
-
-const { version } = JSON.parse(
-  readFileSync(join(__dirname, '..', 'package.json'), 'utf8'),
-) as { version: string };
 
 /*
  * Note: the @nestjs/swagger CLI plugin doesn't run under Jest (ts-jest uses
  * isolatedModules), so DTO *properties* aren't in this document. These tests
- * cover what doesn't depend on the plugin; the plugin's output is checked on
- * the real build (`npm run build`, then /api/docs-json).
+ * cover what doesn't depend on the plugin. To see the plugin's output, run
+ * the real build (`npm run build && npm run start:prod`) and open
+ * /api/docs-json.
  */
 describe('Swagger (e2e)', () => {
   describe('when enabled', () => {
@@ -100,13 +87,13 @@ describe('Swagger (e2e)', () => {
         expect(document.openapi).toMatch(/^3\./);
         expect(document.info).toMatchObject({
           title: 'SimpleFood API',
-          version,
+          version: readApiVersion(),
         });
       });
 
       it('includes the /api prefix in paths, and /health outside it', () => {
         expect(Object.keys(document.paths)).toEqual(
-          expect.arrayContaining(['/api', '/health']),
+          expect.arrayContaining(['/api/ping', '/health']),
         );
         expect(document.paths['/api/health']).toBeUndefined();
       });
