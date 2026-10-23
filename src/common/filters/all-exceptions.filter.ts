@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { genReqId } from '../logging/request-id';
+import { genReqId } from '@/common/logging/request-id';
 
 /** The one error shape every endpoint returns. */
 export interface ErrorResponseBody {

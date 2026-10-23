@@ -1,5 +1,5 @@
 import { DataSource, type DataSourceOptions } from 'typeorm';
-import databaseConfig from '../src/config/database.config';
+import databaseConfig from '@/config/database.config';
 
 /*
  * Checks the migrations themselves, against the Testcontainers Postgres:

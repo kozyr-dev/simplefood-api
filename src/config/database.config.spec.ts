@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { PostgresDataSourceOptions } from 'typeorm/driver/postgres/PostgresDataSourceOptions';
-import { SnakeNamingStrategy } from '../database/snake-naming.strategy';
+import { SnakeNamingStrategy } from '@/database/snake-naming.strategy';
 import databaseConfig from './database.config';
 
 const DB_ENV = {

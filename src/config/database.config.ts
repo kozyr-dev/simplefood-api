@@ -1,7 +1,7 @@
 import { extname, join } from 'node:path';
 import { registerAs } from '@nestjs/config';
 import { DataSourceOptions } from 'typeorm';
-import { SnakeNamingStrategy } from '../database/snake-naming.strategy';
+import { SnakeNamingStrategy } from '@/database/snake-naming.strategy';
 
 /**
  * Database config under the `database` namespace: the single source of truth

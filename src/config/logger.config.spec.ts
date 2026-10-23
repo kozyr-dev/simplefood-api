@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Writable } from 'node:stream';
 import type { Options } from 'pino-http';
 import pino from 'pino';
-import { genReqId } from '../common/logging/request-id';
+import { genReqId } from '@/common/logging/request-id';
 import loggerConfig, {
   isApiDocsRequest,
   isHealthCheck,

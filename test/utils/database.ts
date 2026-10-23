@@ -1,5 +1,5 @@
 import { DataSource, type DataSourceOptions } from 'typeorm';
-import databaseConfig from '../../src/config/database.config';
+import databaseConfig from '@/config/database.config';
 
 /**
  * A DataSource on this worker's test database, for tests that work with

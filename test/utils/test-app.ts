@@ -1,8 +1,8 @@
 import { Controller, Get, INestApplication, type Type } from '@nestjs/common';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { App } from 'supertest/types';
-import { AppModule } from '../../src/app.module';
-import { configureApp } from '../../src/app.setup';
+import { AppModule } from '@/app.module';
+import { configureApp } from '@/app.setup';
 
 /** Test-only route: any test that needs "some endpoint that returns 200". */
 @Controller('ping')

@@ -112,6 +112,8 @@ src/
   database/         TypeORM CLI data source, naming strategy, entities/ (base entity, Seo), migrations/
   health/           GET /health (Terminus)
   media/            Media entity (uploaded files) and its response DTO
+  catalog/          products and product categories: GET /api/products, /api/products/:slug,
+                    /api/product-categories
 test/
   setup/            Testcontainers global setup/teardown
   utils/            createTestApp(), resetDatabase(), factories
@@ -121,6 +123,10 @@ docs/               migration plan
 
 ## Conventions
 
+- **Imports:** use the `@/` alias (= `src/`) for anything outside the current folder, e.g. `import { Media } from '@/media/media.entity'`, and `./` within a folder. The same alias works in `test/` (as in the frontend). It's set up in four places:
+  - `paths` in `tsconfig.json`; `nest build` rewrites it to relative paths in `dist/`
+  - `moduleNameMapper` in both Jest configs
+  - `tsconfig-paths/register` in `test/setup/global-setup.ts`, which Jest loads outside its module system
 - **Routes:** everything is under `/api`, except `/health`, which stays at the root for infrastructure probes.
 - **HTTP-level settings** (headers, CORS, pipes, filters) go in `configureApp()` in [src/app.setup.ts](src/app.setup.ts), so the e2e tests use exactly what production uses.
 - **Responses** are always wrapped: `{ data }` for one resource, `{ data, meta }` for a page of a list, where `meta` is `{ page, pageSize, total, pageCount }`. Lists take `?page=&pageSize=` (default 1 and 20, maximum 100). The helpers live in [src/common/http/](src/common/http/):

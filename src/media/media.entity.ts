@@ -1,5 +1,5 @@
 import { Check, Column, Entity } from 'typeorm';
-import { AppBaseEntity } from '../database/entities/base.entity';
+import { AppBaseEntity } from '@/database/entities/base.entity';
 
 /** One resized variant of an image (generated on upload, phase 5). */
 export interface MediaFormat {

@@ -1,8 +1,8 @@
 import 'reflect-metadata';
 import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
-import databaseConfig from '../config/database.config';
-import validationSchema from '../config/env.validation';
+import databaseConfig from '@/config/database.config';
+import validationSchema from '@/config/env.validation';
 
 /**
  * Entry point for the TypeORM CLI only (migration:generate/run/revert/show).

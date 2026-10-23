@@ -1,5 +1,7 @@
 import type { DataSource } from 'typeorm';
-import { Media } from '../../src/media/media.entity';
+import { ProductCategory } from '@/catalog/entities/product-category.entity';
+import { Product } from '@/catalog/entities/product.entity';
+import { Media } from '@/media/media.entity';
 
 /*
  * Test data factories: save a valid row with sensible defaults, so each test
@@ -25,6 +27,44 @@ export function createMedia(
       width: 800,
       height: 600,
       alt: `Test image ${n}`,
+      ...overrides,
+    }),
+  );
+}
+
+export function createCategory(
+  dataSource: DataSource,
+  overrides: Partial<ProductCategory> = {},
+): Promise<ProductCategory> {
+  const n = next();
+  const repository = dataSource.getRepository(ProductCategory);
+  return repository.save(
+    repository.create({
+      name: `Category ${n}`,
+      slug: `category-${n}`,
+      position: 0,
+      ...overrides,
+    }),
+  );
+}
+
+/** E.g. `createProduct(ds, { categories: [pizza], image, price: 18900 })`. */
+export function createProduct(
+  dataSource: DataSource,
+  overrides: Partial<Product> = {},
+): Promise<Product> {
+  const n = next();
+  const repository = dataSource.getRepository(Product);
+  return repository.save(
+    repository.create({
+      slug: `product-${n}`,
+      title: `Product ${n}`,
+      description: `<p>Description ${n}</p>`,
+      price: 10000,
+      weight: 300,
+      calories: 400,
+      categories: [],
+      image: null,
       ...overrides,
     }),
   );

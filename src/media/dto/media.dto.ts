@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
 /*
  * How media appears in API responses (products, blog posts, page sections).
  * The @nestjs/swagger CLI plugin documents these properties from their types

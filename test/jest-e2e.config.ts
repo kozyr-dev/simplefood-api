@@ -19,6 +19,9 @@ const config: Config = {
   transform: {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
+  // The `@/*` path alias from tsconfig.json (`@/x` = `src/x`). It doesn't
+  // apply to globalSetup, which registers tsconfig-paths itself.
+  moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
   globalSetup: '<rootDir>/test/setup/global-setup.ts',
   globalTeardown: '<rootDir>/test/setup/global-teardown.ts',
   // Each worker gets its own database (see setup/worker-database.ts).

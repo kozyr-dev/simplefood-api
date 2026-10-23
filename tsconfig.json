@@ -16,6 +16,9 @@
     "rootDir": ".",
     "skipLibCheck": true,
     "strict": true,
-    "strictPropertyInitialization": false
+    "strictPropertyInitialization": false,
+    // `@/x` = `src/x`. No baseUrl (deprecated in TypeScript 6). `nest build`
+    // rewrites these to relative paths; Jest maps them via moduleNameMapper.
+    "paths": { "@/*": ["./src/*"] }
   }
 }

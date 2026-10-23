@@ -22,6 +22,8 @@ const config: Config = {
   transform: {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
+  // The `@/*` path alias from tsconfig.json (`@/x` = `src/x`).
+  moduleNameMapper: { '^@/(.*)$': '<rootDir>/$1' },
   // Decorators (class-transformer's @Type, TypeORM, Nest) need this polyfill.
   // The app gets it via Nest; a unit test of a plain DTO would not.
   setupFiles: ['reflect-metadata'],

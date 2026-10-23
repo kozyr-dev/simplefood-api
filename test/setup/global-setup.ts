@@ -1,9 +1,13 @@
+// Jest loads globalSetup outside its module system, so the `@/*` mapping in
+// jest-e2e.config.ts doesn't apply here: resolve it from tsconfig.json instead.
+// Must stay the first import.
+import 'tsconfig-paths/register';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { DataSource, type DataSourceOptions } from 'typeorm';
-import databaseConfig from '../../src/config/database.config';
+import databaseConfig from '@/config/database.config';
 
 /** Same major version as docker-compose.yml and production. */
 const POSTGRES_IMAGE = 'postgres:18-alpine';

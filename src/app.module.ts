@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
 import { HealthModule } from './health/health.module';
 import { MediaModule } from './media/media.module';
+import { CatalogModule } from './catalog/catalog.module';
 import databaseConfig from './config/database.config';
 import validationSchema from './config/env.validation';
 import loggerConfig from './config/logger.config';
@@ -19,6 +20,7 @@ import loggerConfig from './config/logger.config';
     LoggerModule.forRootAsync(loggerConfig.asProvider()),
     HealthModule,
     MediaModule,
+    CatalogModule,
   ],
 })
 export class AppModule {}

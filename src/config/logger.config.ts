@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { registerAs } from '@nestjs/config';
 import type { Params } from 'nestjs-pino';
 import type { LevelWithSilent } from 'pino';
-import { genReqId } from '../common/logging/request-id';
+import { genReqId } from '@/common/logging/request-id';
 import { SWAGGER_PATH } from './swagger.config';
 
 /** Used when LOG_LEVEL is unset (see config/env.validation.ts). */

@@ -6,7 +6,7 @@ import {
   SwaggerDocumentOptions,
   SwaggerModule,
 } from '@nestjs/swagger';
-import { ErrorResponseDto } from '../common/filters/error-response.dto';
+import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 
 /**
  * Swagger UI at /api/docs, the OpenAPI JSON at /api/docs-json. Spelled out in
@@ -50,6 +50,7 @@ export function buildSwaggerDocumentConfig() {
         'health',
         'Liveness check for Docker and uptime monitoring (outside the /api prefix).',
       )
+      .addTag('catalog', 'Products and product categories.')
       // JWT scheme for phase 3; protected endpoints then add @ApiBearerAuth().
       .addBearerAuth()
       // Errors any endpoint can return, in the shape AllExceptionsFilter sends.

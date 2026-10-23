@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { readApiVersion } from '../src/config/swagger.config';
+import { readApiVersion } from '@/config/swagger.config';
 import { createTestApp } from './utils/test-app';
 
 /**
