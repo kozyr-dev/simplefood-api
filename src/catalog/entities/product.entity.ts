@@ -8,7 +8,7 @@ import {
   Unique,
 } from 'typeorm';
 import { AppBaseEntity } from '@/database/entities/base.entity';
-import { Media } from '@/media/media.entity';
+import { Media } from '@/media/entities/media.entity';
 import { ProductCategory } from './product-category.entity';
 
 // Named constraints: a violation reads e.g. `violates unique constraint

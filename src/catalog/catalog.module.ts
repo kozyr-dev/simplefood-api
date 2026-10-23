@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ProductCategory } from './entities/product-category.entity';
-import { Product } from './entities/product.entity';
-import { ProductCategoriesController } from './product-categories.controller';
-import { ProductCategoriesService } from './product-categories.service';
-import { ProductsController } from './products.controller';
-import { ProductsService } from './products.service';
+import { ProductCategory } from '@/catalog/entities/product-category.entity';
+import { Product } from '@/catalog/entities/product.entity';
+import { ProductCategoriesController } from '@/catalog/controllers/product-categories.controller';
+import { ProductCategoriesService } from '@/catalog/services/product-categories.service';
+import { ProductsController } from '@/catalog/controllers/products.controller';
+import { ProductsService } from '@/catalog/services/products.service';
 
 /** Products and product categories (read-only; editing comes with the admin). */
 @Module({

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Media } from './media.entity';
+import { Media } from '@/media/entities/media.entity';
 
 /**
  * Shares the Media repository with the modules that return media (catalog,

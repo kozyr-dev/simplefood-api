@@ -2,10 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, toSkipTake, type Paginated } from '@/common/http/responses';
-import { toProductDto } from './catalog.mappers';
-import type { ListProductsQueryDto } from './dto/list-products.query.dto';
-import type { ProductDto } from './dto/product.dto';
-import { Product } from './entities/product.entity';
+import { toProductDto } from '@/catalog/mappers/catalog.mappers';
+import type { ListProductsQueryDto } from '@/catalog/dto/list-products.query.dto';
+import type { ProductDto } from '@/catalog/dto/product.dto';
+import { Product } from '@/catalog/entities/product.entity';
 
 @Injectable()
 export class ProductsService {

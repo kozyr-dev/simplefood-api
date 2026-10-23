@@ -6,9 +6,9 @@ import {
   ApiPaginatedResponse,
 } from '@/common/http/api-responses.decorator';
 import type { DataResponse, Paginated } from '@/common/http/responses';
-import { ListProductsQueryDto } from './dto/list-products.query.dto';
-import { ProductDto } from './dto/product.dto';
-import { ProductsService } from './products.service';
+import { ListProductsQueryDto } from '@/catalog/dto/list-products.query.dto';
+import { ProductDto } from '@/catalog/dto/product.dto';
+import { ProductsService } from '@/catalog/services/products.service';
 
 @ApiTags('catalog')
 @Controller('products')

@@ -6,11 +6,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
 import { Logger } from 'nestjs-pino';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { TrimPipe } from './common/pipes/trim.pipe';
-import { flattenValidationErrors } from './common/validation/flatten-validation-errors';
-import { REQUEST_ID_HEADER } from './common/logging/constants';
-import { setupSwagger } from './config/swagger.config';
+import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
+import { TrimPipe } from '@/common/pipes/trim.pipe';
+import { flattenValidationErrors } from '@/common/validation/flatten-validation-errors';
+import { REQUEST_ID_HEADER } from '@/common/logging/constants';
+import { setupSwagger } from '@/config/swagger.config';
 
 /**
  * HTTP pipeline shared by main.ts and the e2e tests, so tests exercise the

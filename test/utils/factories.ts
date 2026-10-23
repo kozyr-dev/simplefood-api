@@ -1,7 +1,7 @@
 import type { DataSource } from 'typeorm';
 import { ProductCategory } from '@/catalog/entities/product-category.entity';
 import { Product } from '@/catalog/entities/product.entity';
-import { Media } from '@/media/media.entity';
+import { Media } from '@/media/entities/media.entity';
 
 /*
  * Test data factories: save a valid row with sensible defaults, so each test

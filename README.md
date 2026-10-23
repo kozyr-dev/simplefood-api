@@ -123,6 +123,21 @@ docs/               migration plan
 
 ## Conventions
 
+- **Feature module layout:** one folder per kind of file, with the module file at the root. Only create the folders a module needs. Unit tests (`*.spec.ts`) sit next to the file they test.
+
+  ```text
+  src/<feature>/
+    <feature>.module.ts
+    controllers/   *.controller.ts
+    services/      *.service.ts
+    entities/      *.entity.ts
+    dto/           *.dto.ts (responses) and *.query.dto.ts (query filters)
+    mappers/       entity -> DTO functions
+    filters/       exception filters used only by this module (global ones live in common/)
+  ```
+
+  Keep the file suffixes (`.controller.ts`, `.dto.ts`, `.entity.ts`): the Swagger CLI plugin, the TypeORM entity pattern and the coverage exclusions find files by them.
+
 - **Imports:** use the `@/` alias (= `src/`) for anything outside the current folder, e.g. `import { Media } from '@/media/media.entity'`, and `./` within a folder. The same alias works in `test/` (as in the frontend). It's set up in four places:
   - `paths` in `tsconfig.json`; `nest build` rewrites it to relative paths in `dist/`
   - `moduleNameMapper` in both Jest configs

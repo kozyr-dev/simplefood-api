@@ -1,5 +1,5 @@
 import type { DataSource } from 'typeorm';
-import { Media } from '@/media/media.entity';
+import { Media } from '@/media/entities/media.entity';
 import { openTestDataSource, resetDatabase } from './utils/database';
 import { createMedia } from './utils/factories';
 

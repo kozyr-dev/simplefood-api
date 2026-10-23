@@ -5,7 +5,7 @@ import {
   HealthCheckService,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
-import { HealthCheckFilter } from './health-check.filter';
+import { HealthCheckFilter } from '@/health/filters/health-check.filter';
 
 // Explicit tag (not the auto-generated "Health"): renaming the class must not
 // rename the public docs section or the group in generated frontend clients.

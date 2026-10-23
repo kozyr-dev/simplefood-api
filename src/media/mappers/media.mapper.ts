@@ -1,5 +1,5 @@
-import type { MediaDto } from './dto/media.dto';
-import type { Media } from './media.entity';
+import type { MediaDto } from '@/media/dto/media.dto';
+import type { Media } from '@/media/entities/media.entity';
 
 /**
  * Entity -> API shape. Internal columns (mime, size, folder, timestamps) stay

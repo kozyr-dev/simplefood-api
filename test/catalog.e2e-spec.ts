@@ -8,7 +8,7 @@ import {
   buildSwaggerDocumentConfig,
   operationIdFactory,
 } from '@/config/swagger.config';
-import { Media } from '@/media/media.entity';
+import { Media } from '@/media/entities/media.entity';
 import { resetDatabase } from './utils/database';
 import { createCategory, createMedia, createProduct } from './utils/factories';
 import { createTestApp } from './utils/test-app';
