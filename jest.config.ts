@@ -22,6 +22,9 @@ const config: Config = {
   transform: {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
+  // Decorators (class-transformer's @Type, TypeORM, Nest) need this polyfill.
+  // The app gets it via Nest; a unit test of a plain DTO would not.
+  setupFiles: ['reflect-metadata'],
   collectCoverageFrom: [
     '**/*.ts',
     ...coverageExclusions.map((pattern) => `!${pattern}`),

@@ -79,7 +79,10 @@ The migration scripts (except `create`) build first and use the TypeORM CLI entr
 
 - **Unit tests** (`src/**/*.spec.ts`) cover pure logic: no database and no Docker.
 - **E2E tests** (`test/**/*.e2e-spec.ts`) boot the real app through `createTestApp()` in [test/utils/test-app.ts](test/utils/test-app.ts). It applies the same `configureApp()` pipeline as production.
-  - Before they run, [test/setup/global-setup.ts](test/setup/global-setup.ts) starts a **throwaway Postgres 18 with Testcontainers**, applies the migrations, and sets the test environment. The e2e tests never touch your dev database, and they don't need `.env`.
+  - Before they run, [test/setup/global-setup.ts](test/setup/global-setup.ts) starts a **throwaway Postgres 18 with Testcontainers**, applies the migrations to a template database, and sets the test environment. The e2e tests never touch your dev database, and they don't need `.env`.
+  - **Every Jest worker gets its own copy of that database** (`CREATE DATABASE … TEMPLATE`; see [test/setup/worker-database.ts](test/setup/worker-database.ts)), so files running in parallel never see each other's data. `test/database.e2e-spec.ts` guards this.
+  - **Files that write data** call `resetDatabase(dataSource)` in `beforeEach` ([test/utils/database.ts](test/utils/database.ts)), and create rows with the factories in [test/utils/factories.ts](test/utils/factories.ts) (`createMedia(dataSource, { width: null })`). Add a factory for each new entity.
+  - Get a `DataSource` with `app.get(DataSource)` in tests that boot the app, or `openTestDataSource()` in tests that only use repositories.
   - `test/migrations.e2e-spec.ts` checks the migrations themselves: they apply cleanly, the schema matches the entities, and every `down()` reverts.
 - The `@nestjs/swagger` CLI plugin doesn't run under Jest (`isolatedModules`), so DTO properties only appear in the docs of a real build.
 - **Coverage** is reported separately for each suite (`coverage/unit/`, `coverage/e2e/`), and the two complement each other. Unit tests cover pure logic; controllers, filters and the HTTP pipeline (`app.setup.ts`) are covered by the e2e tests. Both measure the same files: the exclusions (bootstrap, CLI entry, migrations, modules, entities, DTOs) are defined once, as `coverageExclusions` in [jest.config.ts](jest.config.ts).
@@ -105,12 +108,13 @@ src/
   app.module.ts     root module: config, database, logger, feature modules
   config/           env schema and `registerAs` namespaces (database, logger), Swagger setup
   common/           cross-cutting code: exception filter + error DTOs, request IDs, pipes,
-                    validation error formatting
-  database/         TypeORM CLI data source, naming strategy, migrations/
+                    validation error formatting, response envelope + pagination (http/)
+  database/         TypeORM CLI data source, naming strategy, entities/ (base entity, Seo), migrations/
   health/           GET /health (Terminus)
+  media/            Media entity (uploaded files) and its response DTO
 test/
   setup/            Testcontainers global setup/teardown
-  utils/            createTestApp() and other e2e helpers
+  utils/            createTestApp(), resetDatabase(), factories
   *.e2e-spec.ts     e2e suites
 docs/               migration plan
 ```
@@ -119,6 +123,11 @@ docs/               migration plan
 
 - **Routes:** everything is under `/api`, except `/health`, which stays at the root for infrastructure probes.
 - **HTTP-level settings** (headers, CORS, pipes, filters) go in `configureApp()` in [src/app.setup.ts](src/app.setup.ts), so the e2e tests use exactly what production uses.
+- **Responses** are always wrapped: `{ data }` for one resource, `{ data, meta }` for a page of a list, where `meta` is `{ page, pageSize, total, pageCount }`. Lists take `?page=&pageSize=` (default 1 and 20, maximum 100). The helpers live in [src/common/http/](src/common/http/):
+  - `PaginationQueryDto`: extend it for list filters
+  - `toSkipTake()` and `paginate()`: build the page
+  - `@ApiPaginatedResponse(Dto)` and `@ApiDataResponse(Dto)`: document the envelope in Swagger, which can't infer generic types
+- **Entities and responses:** controllers never return entities; they map them to response DTOs (e.g. `toMediaDto()`). Primary keys are UUIDv7 from Postgres (`AppBaseEntity`).
 - **Errors** always have one shape (documented as `ErrorResponseDto` in Swagger):
 
   ```json

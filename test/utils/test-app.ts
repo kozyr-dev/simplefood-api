@@ -16,6 +16,8 @@ export class PingController {
 export interface TestAppOptions {
   /** Extra test-only controllers, registered next to PingController. */
   controllers?: Type[];
+  /** Modules whose providers those controllers inject (e.g. MediaModule for its repository). */
+  imports?: Type[];
   /** Replace providers before compiling, e.g. `.overrideProvider(...)`. */
   override?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
   /** Runs after the app is created, before configureApp() (e.g. to spy on config). */
@@ -30,7 +32,7 @@ export async function createTestApp(
   options: TestAppOptions = {},
 ): Promise<INestApplication<App>> {
   const builder = Test.createTestingModule({
-    imports: [AppModule],
+    imports: [AppModule, ...(options.imports ?? [])],
     controllers: [PingController, ...(options.controllers ?? [])],
   });
   const moduleFixture = await (

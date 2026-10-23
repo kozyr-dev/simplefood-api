@@ -21,6 +21,11 @@ const config: Config = {
   },
   globalSetup: '<rootDir>/test/setup/global-setup.ts',
   globalTeardown: '<rootDir>/test/setup/global-teardown.ts',
+  // Each worker gets its own database (see setup/worker-database.ts).
+  setupFiles: ['<rootDir>/test/setup/worker-database.ts'],
+  // Caps parallel workers, and so the number of test databases and of
+  // connection pools open against the test Postgres.
+  maxWorkers: 4,
   collectCoverageFrom: [
     'src/**/*.ts',
     ...coverageExclusions.map((pattern) => `!src/${pattern}`),
