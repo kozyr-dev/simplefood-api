@@ -115,6 +115,8 @@ src/
   catalog/          products and product categories: GET /api/products, /api/products/:slug,
                     /api/product-categories
   content/          site settings and navigation menus: GET /api/settings, /api/menus/:key
+  blog/             published blog posts and blog categories: GET /api/blog-posts,
+                    /api/blog-posts/:slug, /api/blog-categories
 test/
   setup/            Testcontainers global setup/teardown
   utils/            createTestApp(), resetDatabase(), factories

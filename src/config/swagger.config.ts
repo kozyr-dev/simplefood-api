@@ -52,6 +52,7 @@ export function buildSwaggerDocumentConfig() {
       )
       .addTag('catalog', 'Products and product categories.')
       .addTag('content', 'Site-wide settings and navigation menus.')
+      .addTag('blog', 'News posts and their categories.')
       // JWT scheme for phase 3; protected endpoints then add @ApiBearerAuth().
       .addBearerAuth()
       // Errors any endpoint can return, in the shape AllExceptionsFilter sends.

@@ -1,4 +1,6 @@
 import type { DataSource } from 'typeorm';
+import { BlogCategory } from '@/blog/entities/blog-category.entity';
+import { BlogPost } from '@/blog/entities/blog-post.entity';
 import { ProductCategory } from '@/catalog/entities/product-category.entity';
 import { Product } from '@/catalog/entities/product.entity';
 import { MenuItem, MenuItemGroup } from '@/content/entities/menu-item.entity';
@@ -117,4 +119,49 @@ export async function createMenu(
     }),
   );
   return menu;
+}
+
+export function createBlogCategory(
+  dataSource: DataSource,
+  overrides: Partial<BlogCategory> = {},
+): Promise<BlogCategory> {
+  const n = next();
+  const repository = dataSource.getRepository(BlogCategory);
+  return repository.save(
+    repository.create({
+      name: `Blog category ${n}`,
+      slug: `blog-category-${n}`,
+      ...overrides,
+    }),
+  );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A date `days` from now: negative = in the past. */
+export const daysFromNow = (days: number) =>
+  new Date(Date.now() + days * DAY_MS);
+
+/**
+ * Published a day ago by default. `publishedAt: null` makes a draft, a future
+ * date (`daysFromNow(1)`) a scheduled post.
+ */
+export function createBlogPost(
+  dataSource: DataSource,
+  overrides: Partial<BlogPost> = {},
+): Promise<BlogPost> {
+  const n = next();
+  const repository = dataSource.getRepository(BlogPost);
+  return repository.save(
+    repository.create({
+      slug: `blog-post-${n}`,
+      title: `Blog post ${n}`,
+      text: `## Post ${n}\n\nSome **news** about our dishes.`,
+      image: null,
+      seo: { title: null, description: null },
+      publishedAt: daysFromNow(-1),
+      categories: [],
+      ...overrides,
+    }),
+  );
 }

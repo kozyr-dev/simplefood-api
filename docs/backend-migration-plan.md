@@ -90,7 +90,7 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 | `SiteSettings`              | single row: siteName, phone, address, workingHours, takingOrdersHours, facebook, instagram, seo                                                                                                                                          |
 | `ContactSubmission`         | name, email, message, handledAt                                                                                                                                                                                                          |
 
-`Seo` is an embedded TypeORM class (`seoTitle`, `seoDescription`, `shareImage` → Media). Adding `shareImage` fixes the frontend's dead OG-image code path.
+`Seo` is an embedded TypeORM class (`seoTitle`, `seoDescription`). `shareImage` → Media is not added yet: it comes with the pages step (it fixes the frontend's dead OG-image code path), as a migration adding `seo_share_image_id` to every table that embeds `Seo`.
 
 ## Public API (clean, camelCase, `{data, meta}` envelope)
 
@@ -100,8 +100,9 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 - `GET /api/product-categories`
 - `GET /api/pages/home`
 - `GET /api/pages/:slug`: sections come back fully resolved, with media objects and products embedded.
-- `GET /api/blog/posts?category=<slug>&page=&pageSize=`
-- `GET /api/blog/posts/:slug`
+- `GET /api/blog-posts?category=<slug>&page=&pageSize=`: published posts only, newest first; items carry an `excerpt`, not the full text.
+- `GET /api/blog-posts/:slug`: drafts and scheduled posts are a 404, like unknown slugs.
+- `GET /api/blog-categories`
 - `POST /api/auth/login | register | refresh | logout`: returns `{accessToken, refreshToken, user}`.
 - `GET /api/users/me`, `PATCH /api/users/me`
 - `POST /api/orders` with body `{items:[{productId, quantity}], name, phone, email, address, shippingMethod, comments}`. The server loads prices, rejects unavailable products, and computes totals. Guests may also order: user is optional and `email` is required.
