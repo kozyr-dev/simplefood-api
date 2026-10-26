@@ -1,6 +1,9 @@
 import type { DataSource } from 'typeorm';
 import { ProductCategory } from '@/catalog/entities/product-category.entity';
 import { Product } from '@/catalog/entities/product.entity';
+import { MenuItem, MenuItemGroup } from '@/content/entities/menu-item.entity';
+import { Menu, type MenuKey } from '@/content/entities/menu.entity';
+import { SiteSettings } from '@/content/entities/site-settings.entity';
 import { Media } from '@/media/entities/media.entity';
 
 /*
@@ -68,4 +71,50 @@ export function createProduct(
       ...overrides,
     }),
   );
+}
+
+/** The single settings row (id 1). */
+export function createSettings(
+  dataSource: DataSource,
+  overrides: Partial<SiteSettings> = {},
+): Promise<SiteSettings> {
+  const repository = dataSource.getRepository(SiteSettings);
+  return repository.save(
+    repository.create({
+      siteName: 'SimpleFood',
+      phone: '+380 44 123 45 67',
+      address: 'Kyiv, Khreshchatyk St, 1',
+      workingHours: 'Mon–Sun 10:00–22:00',
+      takingOrdersHours: 'until 21:30',
+      facebook: 'https://facebook.com/simplefood',
+      instagram: 'https://instagram.com/simplefood',
+      seo: { title: 'SimpleFood', description: 'Home-style food delivery' },
+      ...overrides,
+    }),
+  );
+}
+
+/** E.g. `createMenu(ds, MenuKey.Header, [{ title: 'Home', position: 1 }])`. */
+export async function createMenu(
+  dataSource: DataSource,
+  key: MenuKey,
+  items: Partial<MenuItem>[] = [],
+): Promise<Menu> {
+  const menu = await dataSource.getRepository(Menu).save({ key });
+  const itemRepository = dataSource.getRepository(MenuItem);
+  menu.items = await itemRepository.save(
+    items.map((item) => {
+      const n = next();
+      return itemRepository.create({
+        title: `Item ${n}`,
+        link: `/item-${n}`,
+        className: null,
+        group: MenuItemGroup.Main,
+        position: 0,
+        ...item,
+        menu,
+      });
+    }),
+  );
+  return menu;
 }

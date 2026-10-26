@@ -51,6 +51,7 @@ export function buildSwaggerDocumentConfig() {
         'Liveness check for Docker and uptime monitoring (outside the /api prefix).',
       )
       .addTag('catalog', 'Products and product categories.')
+      .addTag('content', 'Site-wide settings and navigation menus.')
       // JWT scheme for phase 3; protected endpoints then add @ApiBearerAuth().
       .addBearerAuth()
       // Errors any endpoint can return, in the shape AllExceptionsFilter sends.

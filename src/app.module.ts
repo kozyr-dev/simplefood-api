@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { HealthModule } from '@/health/health.module';
 import { MediaModule } from '@/media/media.module';
 import { CatalogModule } from '@/catalog/catalog.module';
+import { ContentModule } from '@/content/content.module';
 import databaseConfig from '@/config/database.config';
 import validationSchema from '@/config/env.validation';
 import loggerConfig from '@/config/logger.config';
@@ -21,6 +22,7 @@ import loggerConfig from '@/config/logger.config';
     HealthModule,
     MediaModule,
     CatalogModule,
+    ContentModule,
   ],
 })
 export class AppModule {}

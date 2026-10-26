@@ -114,6 +114,7 @@ src/
   media/            Media entity (uploaded files) and its response DTO
   catalog/          products and product categories: GET /api/products, /api/products/:slug,
                     /api/product-categories
+  content/          site settings and navigation menus: GET /api/settings, /api/menus/:key
 test/
   setup/            Testcontainers global setup/teardown
   utils/            createTestApp(), resetDatabase(), factories
