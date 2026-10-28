@@ -60,7 +60,7 @@ export class BlogPostsService {
   async findBySlug(slug: string): Promise<BlogPostDto> {
     const blogPost = await this.blogPosts.findOne({
       where: { slug, publishedAt: isPublishedNow() },
-      relations: { image: true, categories: true },
+      relations: { image: true, categories: true, seo: { shareImage: true } },
     });
     // Same 404 for unknown, draft and scheduled: don't reveal unpublished slugs.
     if (!blogPost) {

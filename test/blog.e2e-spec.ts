@@ -199,7 +199,11 @@ describe('Blog (e2e)', () => {
         text: '## New dishes\n\nTry our **borscht**.',
         image: expect.objectContaining({ id: image.id, alt: 'Borscht' }),
         categories: [{ id: news.id, name: 'News', slug: 'news' }],
-        seo: { title: 'Autumn menu', description: 'New dishes' },
+        seo: {
+          title: 'Autumn menu',
+          description: 'New dishes',
+          shareImage: null,
+        },
         publishedAt: post.publishedAt?.toISOString(),
         updatedAt: post.updatedAt.toISOString(),
       });
@@ -243,6 +247,18 @@ describe('Blog (e2e)', () => {
       await http().get('/api/blog-posts/soon').expect(200);
       const list = await http().get('/api/blog-posts').expect(200);
       expect(slugs(list.body)).toEqual(['soon']);
+    });
+
+    it('returns the SEO share image', async () => {
+      const shareImage = await createMedia(dataSource);
+      await createBlogPost(dataSource, {
+        slug: 'shared',
+        seo: { title: null, description: null, shareImage },
+      });
+
+      const res = await http().get('/api/blog-posts/shared').expect(200);
+
+      expect(res.body.data.seo.shareImage).toMatchObject({ id: shareImage.id });
     });
 
     it('keeps the post when its image file is deleted (ON DELETE SET NULL)', async () => {

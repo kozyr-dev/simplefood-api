@@ -114,7 +114,8 @@ src/
   media/            Media entity (uploaded files) and its response DTO
   catalog/          products and product categories: GET /api/products, /api/products/:slug,
                     /api/product-categories
-  content/          site settings and navigation menus: GET /api/settings, /api/menus/:key
+  content/          site settings, navigation menus and pages with sections: GET /api/settings,
+                    /api/menus/:key, /api/pages/:slug (the homepage is slug `home`)
   blog/             published blog posts and blog categories: GET /api/blog-posts,
                     /api/blog-posts/:slug, /api/blog-categories
 test/

@@ -46,7 +46,7 @@ describe('toSettingsDto', () => {
       takingOrdersHours: null,
       facebook: 'https://facebook.com/simplefood',
       instagram: null,
-      seo: { title: 'SimpleFood', description: null },
+      seo: { title: 'SimpleFood', description: null, shareImage: null },
     });
   });
 
@@ -63,7 +63,11 @@ describe('toSettingsDto', () => {
       Object.assign(new SiteSettings(), { ...fields, seo: undefined }),
     );
 
-    expect(dto.seo).toEqual({ title: null, description: null });
+    expect(dto.seo).toEqual({
+      title: null,
+      description: null,
+      shareImage: null,
+    });
   });
 });
 

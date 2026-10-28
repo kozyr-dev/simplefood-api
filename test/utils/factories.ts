@@ -5,6 +5,12 @@ import { ProductCategory } from '@/catalog/entities/product-category.entity';
 import { Product } from '@/catalog/entities/product.entity';
 import { MenuItem, MenuItemGroup } from '@/content/entities/menu-item.entity';
 import { Menu, type MenuKey } from '@/content/entities/menu.entity';
+import {
+  PageSection,
+  type SectionType,
+} from '@/content/entities/page-section.entity';
+import { Page } from '@/content/entities/page.entity';
+import { validateSectionData } from '@/content/entities/section-data';
 import { SiteSettings } from '@/content/entities/site-settings.entity';
 import { Media } from '@/media/entities/media.entity';
 
@@ -164,4 +170,50 @@ export function createBlogPost(
       ...overrides,
     }),
   );
+}
+
+/** A section to create with a page; `position` defaults to its index. */
+export interface SectionInput {
+  type: SectionType;
+  data: object;
+  position?: number;
+}
+
+/**
+ * Published a day ago by default, like createBlogPost. Section data goes
+ * through validateSectionData() first, the same check the real writers
+ * (data migration, admin) use, so a test can't store data they'd reject.
+ * E.g. `createPage(ds, { slug: 'home' }, [{ type: SectionType.News, data: {} }])`.
+ */
+export async function createPage(
+  dataSource: DataSource,
+  overrides: Partial<Page> = {},
+  sections: SectionInput[] = [],
+): Promise<Page> {
+  const n = next();
+  const pageRepository = dataSource.getRepository(Page);
+  const page = await pageRepository.save(
+    pageRepository.create({
+      slug: `page-${n}`,
+      title: `Page ${n}`,
+      seo: { title: null, description: null },
+      publishedAt: daysFromNow(-1),
+      ...overrides,
+    }),
+  );
+
+  const sectionRepository = dataSource.getRepository(PageSection);
+  page.sections = await sectionRepository.save(
+    await Promise.all(
+      sections.map(async ({ type, data, position }, index) =>
+        sectionRepository.create({
+          page,
+          type,
+          position: position ?? index,
+          data: await validateSectionData(type, data),
+        }),
+      ),
+    ),
+  );
+  return page;
 }

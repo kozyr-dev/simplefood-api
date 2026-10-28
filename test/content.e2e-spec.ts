@@ -11,8 +11,9 @@ import { MenuItemGroup } from '@/content/entities/menu-item.entity';
 import { Menu, MenuKey } from '@/content/entities/menu.entity';
 import { SiteSettings } from '@/content/entities/site-settings.entity';
 import { MenuItem } from '@/content/entities/menu-item.entity';
+import { Media } from '@/media/entities/media.entity';
 import { resetDatabase } from './utils/database';
-import { createMenu, createSettings } from './utils/factories';
+import { createMedia, createMenu, createSettings } from './utils/factories';
 import { createTestApp } from './utils/test-app';
 
 describe('Content: settings and menus (e2e)', () => {
@@ -62,9 +63,28 @@ describe('Content: settings and menus (e2e)', () => {
           takingOrdersHours: 'until 21:30',
           facebook: 'https://facebook.com/simplefood',
           instagram: 'https://instagram.com/simplefood',
-          seo: { title: 'SimpleFood', description: null },
+          seo: { title: 'SimpleFood', description: null, shareImage: null },
         },
       });
+    });
+
+    it('returns the SEO share image, and null once its file is deleted', async () => {
+      const shareImage = await createMedia(dataSource, { alt: 'Open Graph' });
+      await createSettings(dataSource, {
+        seo: { title: 'SimpleFood', description: null, shareImage },
+      });
+
+      const res = await http().get('/api/settings').expect(200);
+      expect(res.body.data.seo.shareImage).toMatchObject({
+        id: shareImage.id,
+        url: shareImage.url,
+        alt: 'Open Graph',
+      });
+
+      await dataSource.getRepository(Media).delete({ id: shareImage.id });
+
+      const after = await http().get('/api/settings').expect(200);
+      expect(after.body.data.seo.shareImage).toBeNull();
     });
   });
 

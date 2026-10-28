@@ -21,7 +21,10 @@ export class SettingsService {
    * placeholder text.
    */
   async get(): Promise<SettingsDto> {
-    const settings = await this.settings.findOneBy({ id: SITE_SETTINGS_ID });
+    const settings = await this.settings.findOne({
+      where: { id: SITE_SETTINGS_ID },
+      relations: { seo: { shareImage: true } },
+    });
     if (!settings) {
       throw new NotFoundException('Site settings not found');
     }

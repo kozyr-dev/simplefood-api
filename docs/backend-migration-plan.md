@@ -84,13 +84,15 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 | `Order`                     | user ManyToOne (nullable), name, email, phone, address, shippingMethod enum, comments, status enum `new\|processing\|declined\|completed`, subtotal, `legacyDishesText` (migrated orders only)                                           |
 | `OrderItem`                 | order ManyToOne, product ManyToOne (nullable), **snapshot** title + unitPrice, quantity, lineTotal                                                                                                                                       |
 | `BlogCategory` / `BlogPost` | name/slug; title, slug, text (markdown), image → Media, seo (embedded), categories ManyToMany, publishedAt                                                                                                                               |
-| `Page`                      | slug (unique; the homepage becomes slug `home` with `isHomepage`), title, seo (embedded), publishedAt                                                                                                                                    |
+| `Page`                      | slug (unique; the homepage is simply the page with slug `home`), title, seo (embedded), publishedAt                                                                                                                                     |
 | `PageSection`               | page ManyToOne, position, `type` enum (10 types), `data` jsonb validated per type (class-validator DTO per type); references stored as ids (productIds, categoryId, blogCategoryId, mediaIds) and **resolved on read**                   |
 | `Menu` / `MenuItem`         | key `header\|footer\|dropdown`; title, link, className, group `main\|list`, position                                                                                                                                                     |
 | `SiteSettings`              | single row: siteName, phone, address, workingHours, takingOrdersHours, facebook, instagram, seo                                                                                                                                          |
 | `ContactSubmission`         | name, email, message, handledAt                                                                                                                                                                                                          |
 
-`Seo` is an embedded TypeORM class (`seoTitle`, `seoDescription`). `shareImage` → Media is not added yet: it comes with the pages step (it fixes the frontend's dead OG-image code path), as a migration adding `seo_share_image_id` to every table that embeds `Seo`.
+`Seo` is an embedded TypeORM class (`seo_title`, `seo_description`, `seo_share_image_id` → Media, `ON DELETE SET NULL`), used by settings, pages and blog posts. `shareImage` fixes the frontend's dead OG-image code path.
+
+**Page sections.** 10 types (`page_section_type` enum): `image-banner`, `products`, `benefits`, `articles`, `image-gallery`, `video`, `news`, `content`, `contact`, `promo`. The stored `data` shape per type lives in `src/content/entities/section-data.ts`; every writer (data migration, admin) must run `validateSectionData()`. References are ids in jsonb (no foreign keys), resolved on read in a fixed number of queries; a deleted row becomes `null` or drops out of its list. `products` sections are resolved server-side (available products only; `selected` keeps the editor's order). `news` sections resolve only their blog category: the client loads the paginated posts with `GET /api/blog-posts?category=<slug>`. Strapi field names map to camelCase (`custom_ID` → `anchorId`, `Benefit`/`article` → `items`, `content2` → `secondaryContent`, `form`/`form_title` → `showForm`/`formTitle`, ...).
 
 ## Public API (clean, camelCase, `{data, meta}` envelope)
 
@@ -98,8 +100,7 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 - `GET /api/menus/:key`
 - `GET /api/products?category=&featured=&page=&pageSize=`
 - `GET /api/product-categories`
-- `GET /api/pages/home`
-- `GET /api/pages/:slug`: sections come back fully resolved, with media objects and products embedded.
+- `GET /api/pages/:slug` (the homepage is `home`): published pages only; sections come back fully resolved, with media objects and products embedded.
 - `GET /api/blog-posts?category=<slug>&page=&pageSize=`: published posts only, newest first; items carry an `excerpt`, not the full text.
 - `GET /api/blog-posts/:slug`: drafts and scheduled posts are a 404, like unknown slugs.
 - `GET /api/blog-categories`
@@ -153,6 +154,7 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
    - ✅ Done (2026-10-21): Node 24 / Nest 12 scaffold, Postgres 18 + Mailpit in Docker Compose, Joi-validated config (`registerAs` namespaces), TypeORM 1.x with migrations and a snake_case naming strategy, `/health`, security headers, validation pipe and a single error shape, `nestjs-pino` logging with request IDs, Swagger at `/api/docs`, and GitHub Actions CI (e2e tests and migration checks run on Testcontainers).
    - The production Docker image moved to phase 9, where the app is ready to deploy. Only `.dockerignore` exists so far.
 2. **Core domain.** Build the entities, the first migration, and the read endpoints (catalog, content, blog, settings, menus) with the section resolver.
+   - ✅ Done (2026-10-28): media, catalog (products, categories), settings and menus, blog (published-only, excerpts), pages with 10 section types resolved without N+1, and `Seo.shareImage`. Read endpoints only; every list is paginated and ordered with an id tie-breaker; all covered by unit and Testcontainers e2e tests.
 3. **Auth and users.** Add rotating refresh tokens, guards, and the roles admin, editor and customer.
 4. **Orders, contact and mail.** Server-side pricing, order items, throttling, and email notifications.
 5. **Media.** Uploads with sharp variants and static `/uploads` serving.

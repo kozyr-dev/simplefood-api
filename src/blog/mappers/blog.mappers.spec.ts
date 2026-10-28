@@ -127,6 +127,10 @@ describe('toBlogPostDto', () => {
   it('returns null SEO fields when the post has none', () => {
     const dto = toBlogPostDto(post({ seo: undefined }));
 
-    expect(dto.seo).toEqual({ title: null, description: null });
+    expect(dto.seo).toEqual({
+      title: null,
+      description: null,
+      shareImage: null,
+    });
   });
 });
