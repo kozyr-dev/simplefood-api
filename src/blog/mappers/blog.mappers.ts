@@ -1,9 +1,9 @@
 import { toSeoDto } from '@/common/seo/seo.mapper';
-import type { BlogCategoryDto } from '@/blog/dto/blog-category.dto';
-import type { BlogPostSummaryDto } from '@/blog/dto/blog-post-summary.dto';
-import type { BlogPostDto } from '@/blog/dto/blog-post.dto';
-import type { BlogCategory } from '@/blog/entities/blog-category.entity';
-import type { BlogPost } from '@/blog/entities/blog-post.entity';
+import type { BlogCategoryDto } from '../dto/blog-category.dto';
+import type { BlogPostSummaryDto } from '../dto/blog-post-summary.dto';
+import type { BlogPostDto } from '../dto/blog-post.dto';
+import type { BlogCategory } from '../entities/blog-category.entity';
+import type { BlogPost } from '../entities/blog-post.entity';
 import { toMediaDtoOrNull } from '@/media/mappers/media.mapper';
 import { toExcerpt } from './markdown-excerpt';
 

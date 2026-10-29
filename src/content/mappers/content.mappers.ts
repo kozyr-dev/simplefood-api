@@ -1,13 +1,10 @@
 import { toSeoDto } from '@/common/seo/seo.mapper';
-import type { MenuItemDto } from '@/content/dto/menu-item.dto';
-import type { MenuDto } from '@/content/dto/menu.dto';
-import type { SettingsDto } from '@/content/dto/settings.dto';
-import {
-  MenuItemGroup,
-  type MenuItem,
-} from '@/content/entities/menu-item.entity';
-import type { Menu } from '@/content/entities/menu.entity';
-import type { SiteSettings } from '@/content/entities/site-settings.entity';
+import type { MenuItemDto } from '../dto/menu-item.dto';
+import type { MenuDto } from '../dto/menu.dto';
+import type { SettingsDto } from '../dto/settings.dto';
+import { MenuItemGroup, type MenuItem } from '../entities/menu-item.entity';
+import type { Menu } from '../entities/menu.entity';
+import type { SiteSettings } from '../entities/site-settings.entity';
 
 export function toSettingsDto(settings: SiteSettings): SettingsDto {
   return {

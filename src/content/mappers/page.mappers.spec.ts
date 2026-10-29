@@ -1,12 +1,9 @@
 import { BlogCategory } from '@/blog/entities/blog-category.entity';
 import { ProductCategory } from '@/catalog/entities/product-category.entity';
 import { Product } from '@/catalog/entities/product.entity';
-import { Page } from '@/content/entities/page.entity';
-import {
-  PageSection,
-  SectionType,
-} from '@/content/entities/page-section.entity';
-import type { SectionData } from '@/content/entities/section-data';
+import { Page } from '../entities/page.entity';
+import { PageSection, SectionType } from '../entities/page-section.entity';
+import type { SectionData } from '../entities/section-data';
 import { Media } from '@/media/entities/media.entity';
 import {
   collectSectionReferences,

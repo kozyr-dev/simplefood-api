@@ -1,4 +1,4 @@
-import { MenuKey } from '@/content/entities/menu.entity';
+import { MenuKey } from '../entities/menu.entity';
 import { MenuItemDto } from './menu-item.dto';
 
 export class MenuDto {

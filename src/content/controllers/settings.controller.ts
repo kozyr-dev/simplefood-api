@@ -3,8 +3,8 @@ import { ApiNotFoundResponse, ApiTags } from '@nestjs/swagger';
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 import { ApiDataResponse } from '@/common/http/api-responses.decorator';
 import type { DataResponse } from '@/common/http/responses';
-import { SettingsDto } from '@/content/dto/settings.dto';
-import { SettingsService } from '@/content/services/settings.service';
+import { SettingsDto } from '../dto/settings.dto';
+import { SettingsService } from '../services/settings.service';
 
 @ApiTags('content')
 @Controller('settings')

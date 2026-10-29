@@ -9,13 +9,10 @@ import type {
   PageSectionDto,
   SectionDtoOf,
   SectionItemDto,
-} from '@/content/dto/page-sections.dto';
-import type { PageDto } from '@/content/dto/page.dto';
-import type { Page } from '@/content/entities/page.entity';
-import {
-  SectionType,
-  type PageSection,
-} from '@/content/entities/page-section.entity';
+} from '../dto/page-sections.dto';
+import type { PageDto } from '../dto/page.dto';
+import type { Page } from '../entities/page.entity';
+import { SectionType, type PageSection } from '../entities/page-section.entity';
 import {
   NewsLayout,
   ProductsLayout,
@@ -23,7 +20,7 @@ import {
   type ButtonData,
   type SectionDataOf,
   type SectionItemData,
-} from '@/content/entities/section-data';
+} from '../entities/section-data';
 import type { MediaDto } from '@/media/dto/media.dto';
 import type { Media } from '@/media/entities/media.entity';
 import { toMediaDto, toMediaDtoOrNull } from '@/media/mappers/media.mapper';

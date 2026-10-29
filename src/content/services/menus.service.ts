@@ -1,9 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { MenuDto } from '@/content/dto/menu.dto';
-import { Menu, type MenuKey } from '@/content/entities/menu.entity';
-import { toMenuDto } from '@/content/mappers/content.mappers';
+import type { MenuDto } from '../dto/menu.dto';
+import { Menu, type MenuKey } from '../entities/menu.entity';
+import { toMenuDto } from '../mappers/content.mappers';
 
 @Injectable()
 export class MenusService {

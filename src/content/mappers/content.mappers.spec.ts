@@ -1,6 +1,6 @@
-import { MenuItem, MenuItemGroup } from '@/content/entities/menu-item.entity';
-import { Menu, MenuKey } from '@/content/entities/menu.entity';
-import { SiteSettings } from '@/content/entities/site-settings.entity';
+import { MenuItem, MenuItemGroup } from '../entities/menu-item.entity';
+import { Menu, MenuKey } from '../entities/menu.entity';
+import { SiteSettings } from '../entities/site-settings.entity';
 import { toMenuDto, toSettingsDto } from './content.mappers';
 
 function item(

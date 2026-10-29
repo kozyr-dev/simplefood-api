@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { BlogCategory } from '@/blog/entities/blog-category.entity';
-import { BlogPost } from '@/blog/entities/blog-post.entity';
-import { BlogCategoriesController } from '@/blog/controllers/blog-categories.controller';
-import { BlogCategoriesService } from '@/blog/services/blog-categories.service';
-import { BlogPostsController } from '@/blog/controllers/blog-posts.controller';
-import { BlogPostsService } from '@/blog/services/blog-posts.service';
+import { BlogCategory } from './entities/blog-category.entity';
+import { BlogPost } from './entities/blog-post.entity';
+import { BlogCategoriesController } from './controllers/blog-categories.controller';
+import { BlogCategoriesService } from './services/blog-categories.service';
+import { BlogPostsController } from './controllers/blog-posts.controller';
+import { BlogPostsService } from './services/blog-posts.service';
 
 /** Blog posts and their categories (read-only; editing comes with the admin). */
 @Module({

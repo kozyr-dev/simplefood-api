@@ -6,7 +6,7 @@ import { Product } from '@/catalog/entities/product.entity';
 import type {
   SectionLookups,
   SectionReferences,
-} from '@/content/mappers/page.mappers';
+} from '../mappers/page.mappers';
 import { Media } from '@/media/entities/media.entity';
 
 /** What toProductDto needs loaded. */

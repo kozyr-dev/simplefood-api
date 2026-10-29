@@ -2,14 +2,11 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { paginate, toSkipTake, type Paginated } from '@/common/http/responses';
-import {
-  toBlogPostDto,
-  toBlogPostSummaryDto,
-} from '@/blog/mappers/blog.mappers';
-import type { ListBlogPostsQueryDto } from '@/blog/dto/list-blog-posts.query.dto';
-import type { BlogPostSummaryDto } from '@/blog/dto/blog-post-summary.dto';
-import type { BlogPostDto } from '@/blog/dto/blog-post.dto';
-import { BlogPost } from '@/blog/entities/blog-post.entity';
+import { toBlogPostDto, toBlogPostSummaryDto } from '../mappers/blog.mappers';
+import type { ListBlogPostsQueryDto } from '../dto/list-blog-posts.query.dto';
+import type { BlogPostSummaryDto } from '../dto/blog-post-summary.dto';
+import type { BlogPostDto } from '../dto/blog-post.dto';
+import { BlogPost } from '../entities/blog-post.entity';
 import { isPublishedNow } from '@/database/published';
 
 /** Public reads: drafts and scheduled posts behave as if they don't exist. */

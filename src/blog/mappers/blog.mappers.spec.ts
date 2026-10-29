@@ -1,5 +1,5 @@
-import { BlogCategory } from '@/blog/entities/blog-category.entity';
-import { BlogPost } from '@/blog/entities/blog-post.entity';
+import { BlogCategory } from '../entities/blog-category.entity';
+import { BlogPost } from '../entities/blog-post.entity';
 import { Media } from '@/media/entities/media.entity';
 import {
   toBlogCategoryDto,

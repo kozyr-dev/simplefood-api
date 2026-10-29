@@ -1,4 +1,4 @@
-import { Media } from '@/media/entities/media.entity';
+import { Media } from '../entities/media.entity';
 import { toMediaDto, toMediaDtoOrNull } from './media.mapper';
 
 function media(overrides: Partial<Media> = {}): Media {

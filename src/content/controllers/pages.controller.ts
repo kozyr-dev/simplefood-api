@@ -3,8 +3,8 @@ import { ApiNotFoundResponse, ApiTags } from '@nestjs/swagger';
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 import { ApiDataResponse } from '@/common/http/api-responses.decorator';
 import type { DataResponse } from '@/common/http/responses';
-import { PageDto } from '@/content/dto/page.dto';
-import { PagesService } from '@/content/services/pages.service';
+import { PageDto } from '../dto/page.dto';
+import { PagesService } from '../services/pages.service';
 
 @ApiTags('content')
 @Controller('pages')

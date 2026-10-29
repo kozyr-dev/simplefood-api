@@ -1,12 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { SettingsDto } from '@/content/dto/settings.dto';
+import type { SettingsDto } from '../dto/settings.dto';
 import {
   SITE_SETTINGS_ID,
   SiteSettings,
-} from '@/content/entities/site-settings.entity';
-import { toSettingsDto } from '@/content/mappers/content.mappers';
+} from '../entities/site-settings.entity';
+import { toSettingsDto } from '../mappers/content.mappers';
 
 @Injectable()
 export class SettingsService {

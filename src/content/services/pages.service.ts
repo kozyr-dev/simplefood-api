@@ -1,12 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import type { PageDto } from '@/content/dto/page.dto';
-import { Page } from '@/content/entities/page.entity';
-import {
-  collectSectionReferences,
-  toPageDto,
-} from '@/content/mappers/page.mappers';
+import type { PageDto } from '../dto/page.dto';
+import { Page } from '../entities/page.entity';
+import { collectSectionReferences, toPageDto } from '../mappers/page.mappers';
 import { isPublishedNow } from '@/database/published';
 import { SectionReferencesService } from './section-references.service';
 

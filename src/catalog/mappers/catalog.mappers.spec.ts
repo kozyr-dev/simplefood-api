@@ -1,7 +1,7 @@
 import { Media } from '@/media/entities/media.entity';
 import { toProductCategoryDto, toProductDto } from './catalog.mappers';
-import { ProductCategory } from '@/catalog/entities/product-category.entity';
-import { Product } from '@/catalog/entities/product.entity';
+import { ProductCategory } from '../entities/product-category.entity';
+import { Product } from '../entities/product.entity';
 
 const category = (name: string, position: number) =>
   Object.assign(new ProductCategory(), {

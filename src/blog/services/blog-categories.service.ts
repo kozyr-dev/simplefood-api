@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { toBlogCategoryDto } from '@/blog/mappers/blog.mappers';
-import type { BlogCategoryDto } from '@/blog/dto/blog-category.dto';
-import { BlogCategory } from '@/blog/entities/blog-category.entity';
+import { toBlogCategoryDto } from '../mappers/blog.mappers';
+import type { BlogCategoryDto } from '../dto/blog-category.dto';
+import { BlogCategory } from '../entities/blog-category.entity';
 
 @Injectable()
 export class BlogCategoriesService {

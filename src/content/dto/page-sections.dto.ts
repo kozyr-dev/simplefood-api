@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BlogCategoryDto } from '@/blog/dto/blog-category.dto';
 import { ProductDto } from '@/catalog/dto/product.dto';
-import { SectionType } from '@/content/entities/page-section.entity';
+import { SectionType } from '../entities/page-section.entity';
 import {
   NewsLayout,
   ProductsLayout,
   ProductsSource,
-} from '@/content/entities/section-data';
+} from '../entities/section-data';
 import { MediaDto } from '@/media/dto/media.dto';
 
 /*

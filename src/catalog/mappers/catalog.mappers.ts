@@ -1,8 +1,8 @@
 import { toMediaDtoOrNull } from '@/media/mappers/media.mapper';
-import type { ProductCategoryDto } from '@/catalog/dto/product-category.dto';
-import type { ProductDto } from '@/catalog/dto/product.dto';
-import type { ProductCategory } from '@/catalog/entities/product-category.entity';
-import type { Product } from '@/catalog/entities/product.entity';
+import type { ProductCategoryDto } from '../dto/product-category.dto';
+import type { ProductDto } from '../dto/product.dto';
+import type { ProductCategory } from '../entities/product-category.entity';
+import type { Product } from '../entities/product.entity';
 
 /** Display order of categories: `position`, then `name`. */
 export function compareCategories(a: ProductCategory, b: ProductCategory) {

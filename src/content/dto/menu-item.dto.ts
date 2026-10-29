@@ -1,4 +1,4 @@
-import { MenuItemGroup } from '@/content/entities/menu-item.entity';
+import { MenuItemGroup } from '../entities/menu-item.entity';
 
 export class MenuItemDto {
   /** @example "01a1559c-a1ed-7641-ac0e-64612b99bb5a" */

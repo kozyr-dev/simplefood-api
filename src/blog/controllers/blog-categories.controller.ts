@@ -2,8 +2,8 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiDataResponse } from '@/common/http/api-responses.decorator';
 import type { DataResponse } from '@/common/http/responses';
-import { BlogCategoryDto } from '@/blog/dto/blog-category.dto';
-import { BlogCategoriesService } from '@/blog/services/blog-categories.service';
+import { BlogCategoryDto } from '../dto/blog-category.dto';
+import { BlogCategoriesService } from '../services/blog-categories.service';
 
 @ApiTags('blog')
 @Controller('blog-categories')

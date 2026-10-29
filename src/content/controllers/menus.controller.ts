@@ -8,9 +8,9 @@ import {
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 import { ApiDataResponse } from '@/common/http/api-responses.decorator';
 import type { DataResponse } from '@/common/http/responses';
-import { MenuDto } from '@/content/dto/menu.dto';
-import { MenuKey } from '@/content/entities/menu.entity';
-import { MenusService } from '@/content/services/menus.service';
+import { MenuDto } from '../dto/menu.dto';
+import { MenuKey } from '../entities/menu.entity';
+import { MenusService } from '../services/menus.service';
 
 @ApiTags('content')
 @Controller('menus')

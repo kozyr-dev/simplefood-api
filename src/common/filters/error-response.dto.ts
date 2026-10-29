@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import type { ValidationErrorDetail } from '@/common/validation/flatten-validation-errors';
+import type { ValidationErrorDetail } from '../validation/flatten-validation-errors';
 import type { ErrorResponseBody } from './all-exceptions.filter';
 
 /*

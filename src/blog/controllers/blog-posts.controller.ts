@@ -6,10 +6,10 @@ import {
   ApiPaginatedResponse,
 } from '@/common/http/api-responses.decorator';
 import type { DataResponse, Paginated } from '@/common/http/responses';
-import { ListBlogPostsQueryDto } from '@/blog/dto/list-blog-posts.query.dto';
-import { BlogPostSummaryDto } from '@/blog/dto/blog-post-summary.dto';
-import { BlogPostDto } from '@/blog/dto/blog-post.dto';
-import { BlogPostsService } from '@/blog/services/blog-posts.service';
+import { ListBlogPostsQueryDto } from '../dto/list-blog-posts.query.dto';
+import { BlogPostSummaryDto } from '../dto/blog-post-summary.dto';
+import { BlogPostDto } from '../dto/blog-post.dto';
+import { BlogPostsService } from '../services/blog-posts.service';
 
 @ApiTags('blog')
 @Controller('blog-posts')
