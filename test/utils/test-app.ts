@@ -1,6 +1,6 @@
-import { Controller, Get, INestApplication, type Type } from '@nestjs/common';
+import { Controller, Get, type Type } from '@nestjs/common';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
-import { App } from 'supertest/types';
 import { AppModule } from '@/app.module';
 import { configureApp } from '@/app.setup';
 
@@ -21,7 +21,7 @@ export interface TestAppOptions {
   /** Replace providers before compiling, e.g. `.overrideProvider(...)`. */
   override?: (builder: TestingModuleBuilder) => TestingModuleBuilder;
   /** Runs after the app is created, before configureApp() (e.g. to spy on config). */
-  beforeConfigure?: (app: INestApplication<App>) => void;
+  beforeConfigure?: (app: NestExpressApplication) => void;
 }
 
 /**
@@ -30,7 +30,7 @@ export interface TestAppOptions {
  */
 export async function createTestApp(
   options: TestAppOptions = {},
-): Promise<INestApplication<App>> {
+): Promise<NestExpressApplication> {
   const builder = Test.createTestingModule({
     imports: [AppModule, ...(options.imports ?? [])],
     controllers: [PingController, ...(options.controllers ?? [])],
@@ -39,7 +39,7 @@ export async function createTestApp(
     options.override?.(builder) ?? builder
   ).compile();
 
-  const app = moduleFixture.createNestApplication<INestApplication<App>>();
+  const app = moduleFixture.createNestApplication<NestExpressApplication>();
   options.beforeConfigure?.(app);
   configureApp(app);
   await app.init();

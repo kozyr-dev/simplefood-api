@@ -1,10 +1,7 @@
-import {
-  BadRequestException,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
 import { TrimPipe } from '@/common/pipes/trim.pipe';
@@ -17,8 +14,16 @@ import { setupSwagger } from '@/config/swagger.config';
  * exact routes, headers, pipes and filters production uses. Process-level
  * concerns (shutdown hooks, listen) stay in main.ts.
  */
-export function configureApp(app: INestApplication): void {
+export function configureApp(app: NestExpressApplication): void {
   const config: ConfigService = app.get(ConfigService);
+
+  // Behind N reverse proxies, `req.ip` is the client address N hops back in
+  // X-Forwarded-For (rate limits and logs key on it). With 0 the header is
+  // ignored: anyone reaching the API directly could forge it.
+  const proxyHops = config.getOrThrow<number>('TRUST_PROXY_HOPS');
+  if (proxyHops > 0) {
+    app.set('trust proxy', proxyHops);
+  }
 
   // First, so every response gets the headers, including CORS preflights,
   // 404s and errors (on Express, middleware added earlier would skip them).

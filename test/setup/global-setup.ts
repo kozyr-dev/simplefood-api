@@ -48,6 +48,10 @@ export default async function globalSetup(globalConfig: {
     TEST_DB_TEMPLATE: template,
     // Required by the env schema; a fixed value the CORS tests rely on.
     CORS_ORIGINS: 'http://localhost:3000',
+    // Fixed, so tests can sign their own tokens (expired, wrong audience, ...).
+    JWT_ACCESS_SECRET: 'e2e-test-secret-e2e-test-secret-e2e',
+    // bcrypt's minimum: cost 12 would add ~250 ms to every register and login.
+    BCRYPT_ROUNDS: '4',
   });
 
   // Same options the app and the CLI use (read from the env set above).

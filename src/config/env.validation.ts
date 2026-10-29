@@ -29,6 +29,49 @@ const validationSchema = Joi.object({
   CORS_ORIGINS: Joi.string().required(),
   // Swagger UI at /api/docs. Off by default: the docs list the whole API surface.
   SWAGGER_ENABLED: Joi.boolean().default(false),
+  // Read by the `auth` namespace in config/auth.config.ts.
+  // HS256 key for access tokens; generate with `openssl rand -base64 48`.
+  // Production refuses the .env.example placeholder (it contains "change-me").
+  JWT_ACCESS_SECRET: Joi.string()
+    .min(32)
+    .required()
+    .when('NODE_ENV', {
+      is: 'production',
+      // `then` is Joi's API here, not a thenable (a Promise-like object).
+      // oxlint-disable-next-line unicorn/no-thenable
+      then: Joi.string().pattern(/change-me/i, { invert: true }),
+    })
+    // Joi's default message would print the value, i.e. the secret.
+    .messages({
+      'string.pattern.invert.base':
+        '"JWT_ACCESS_SECRET" is the .env.example placeholder; generate a real secret',
+    }),
+  // Access token lifetime in seconds. Short: access tokens can't be revoked.
+  JWT_ACCESS_TTL: Joi.number().integer().min(60).default(900),
+  // A refresh token expires after this many days without use...
+  REFRESH_TOKEN_TTL_DAYS: Joi.number().integer().min(1).default(7),
+  // ...and a session ends this many days after login, used or not.
+  REFRESH_TOKEN_MAX_TTL_DAYS: Joi.number()
+    .integer()
+    .min(Joi.ref('REFRESH_TOKEN_TTL_DAYS'))
+    .default(30),
+  // bcrypt cost: each +1 doubles the time per hash (12 is ~250 ms). 4 is
+  // bcrypt's minimum, for fast tests only; production needs at least 10.
+  BCRYPT_ROUNDS: Joi.number()
+    .integer()
+    .min(4)
+    .max(15)
+    .default(12)
+    .when('NODE_ENV', {
+      is: 'production',
+      // oxlint-disable-next-line unicorn/no-thenable
+      then: Joi.number().min(10),
+    }),
+  // Reverse proxies (nginx, ...) in front of the API, for Express's
+  // `trust proxy`: the client IP (rate limits, logs) is read from
+  // X-Forwarded-For only this many hops deep. 0: the header is ignored, as it
+  // can be forged by anyone who reaches the API directly.
+  TRUST_PROXY_HOPS: Joi.number().integer().min(0).default(0),
 });
 
 export default validationSchema;

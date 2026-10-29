@@ -8,6 +8,7 @@ const minimalEnv = {
   DB_PASSWORD: 'secret',
   DB_NAME: 'simplefood',
   CORS_ORIGINS: 'https://simplefood.kozyr.info',
+  JWT_ACCESS_SECRET: 'kO3n9vB1xQ7mZ2pL5sT8wY4cF6hJ0dGa',
 };
 
 // Same options @nestjs/config uses by default.
@@ -26,6 +27,11 @@ describe('env validation schema', () => {
       PORT: 1339,
       DB_PORT: 5432,
       SWAGGER_ENABLED: false,
+      JWT_ACCESS_TTL: 900,
+      REFRESH_TOKEN_TTL_DAYS: 7,
+      REFRESH_TOKEN_MAX_TTL_DAYS: 30,
+      BCRYPT_ROUNDS: 12,
+      TRUST_PROXY_HOPS: 0,
     });
     expect(value.LOG_LEVEL).toBeUndefined(); // logger.config picks per NODE_ENV
   });
@@ -37,6 +43,7 @@ describe('env validation schema', () => {
     'DB_PASSWORD',
     'DB_NAME',
     'CORS_ORIGINS',
+    'JWT_ACCESS_SECRET',
   ])('requires %s', (key) => {
     const env: Record<string, unknown> = { ...minimalEnv };
     delete env[key];
@@ -53,6 +60,7 @@ describe('env validation schema', () => {
         'DB_PASSWORD',
         'DB_NAME',
         'CORS_ORIGINS',
+        'JWT_ACCESS_SECRET',
       ]),
     );
   });
@@ -66,6 +74,12 @@ describe('env validation schema', () => {
     ['LOG_LEVEL', 'verbose'],
     ['LOG_LEVEL', 'INFO'],
     ['SWAGGER_ENABLED', 'maybe'],
+    ['JWT_ACCESS_SECRET', 'x'.repeat(31)],
+    ['JWT_ACCESS_TTL', '59'],
+    ['JWT_ACCESS_TTL', '90.5'],
+    ['REFRESH_TOKEN_TTL_DAYS', '0'],
+    ['BCRYPT_ROUNDS', '16'],
+    ['TRUST_PROXY_HOPS', '-1'],
   ])('rejects %s=%s', (key, value) => {
     expect(errorKeys({ ...minimalEnv, [key]: value })).toEqual([key]);
   });
@@ -82,6 +96,72 @@ describe('env validation schema', () => {
       PORT: 8080,
       DB_PORT: 5433,
       SWAGGER_ENABLED: true,
+    });
+  });
+
+  describe('auth', () => {
+    it('requires the session lifetime to be at least the idle lifetime', () => {
+      expect(
+        errorKeys({
+          ...minimalEnv,
+          REFRESH_TOKEN_TTL_DAYS: '14',
+          REFRESH_TOKEN_MAX_TTL_DAYS: '7',
+        }),
+      ).toEqual(['REFRESH_TOKEN_MAX_TTL_DAYS']);
+    });
+
+    it('checks the session lifetime against the idle default too', () => {
+      expect(
+        errorKeys({ ...minimalEnv, REFRESH_TOKEN_MAX_TTL_DAYS: '6' }),
+      ).toEqual(['REFRESH_TOKEN_MAX_TTL_DAYS']);
+    });
+
+    it.each([
+      ['test', '4', true],
+      ['development', '4', true],
+      ['production', '4', false],
+      ['production', '9', false],
+      ['production', '10', true],
+      ['test', '3', false],
+    ])('NODE_ENV=%s, BCRYPT_ROUNDS=%s: accepted = %s', (env, rounds, ok) => {
+      expect(
+        errorKeys({ ...minimalEnv, NODE_ENV: env, BCRYPT_ROUNDS: rounds }),
+      ).toEqual(ok ? [] : ['BCRYPT_ROUNDS']);
+    });
+
+    const placeholder = 'dev-only-change-me-dev-only-change-me';
+
+    it('refuses the .env.example placeholder secret in production', () => {
+      expect(
+        errorKeys({ ...minimalEnv, JWT_ACCESS_SECRET: placeholder }),
+      ).toEqual(['JWT_ACCESS_SECRET']);
+    });
+
+    it('never prints the secret in an error message', () => {
+      const tooShort = 'Zx81-not-long-enough';
+      const messages = [placeholder, tooShort].flatMap(
+        (secret) =>
+          validate({
+            ...minimalEnv,
+            JWT_ACCESS_SECRET: secret,
+          }).error?.details.map((detail) => detail.message) ?? [],
+      );
+
+      expect(messages).toHaveLength(2);
+      for (const message of messages) {
+        expect(message).not.toContain(placeholder);
+        expect(message).not.toContain(tooShort);
+      }
+    });
+
+    it('accepts the placeholder secret in development', () => {
+      expect(
+        errorKeys({
+          ...minimalEnv,
+          NODE_ENV: 'development',
+          JWT_ACCESS_SECRET: placeholder,
+        }),
+      ).toEqual([]);
     });
   });
 

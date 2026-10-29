@@ -6,7 +6,9 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
@@ -66,6 +68,31 @@ class PipelineTestController {
   findOne(@Param('id', ParseUUIDPipe) id: string) {
     return { id };
   }
+}
+
+/** Test-only: the client address Express resolved (`req.ip`). */
+@Controller('client-ip')
+class ClientIpController {
+  @Get()
+  ip(@Req() req: { ip?: string }) {
+    return { ip: req.ip };
+  }
+}
+
+/** The app with TRUST_PROXY_HOPS forced to `hops`; all other config is real. */
+function createAppWithProxyHops(hops: number) {
+  return createTestApp({
+    controllers: [ClientIpController],
+    beforeConfigure: (app) => {
+      const config = app.get(ConfigService);
+      const realGetOrThrow = config.getOrThrow.bind(config);
+      jest
+        .spyOn(config, 'getOrThrow')
+        .mockImplementation((key: string) =>
+          key === 'TRUST_PROXY_HOPS' ? hops : realGetOrThrow(key),
+        );
+    },
+  });
 }
 
 const validBody = {
@@ -293,4 +320,43 @@ describe('HTTP pipeline (e2e)', () => {
       });
     });
   });
+});
+
+describe('Client IP behind reverse proxies (e2e)', () => {
+  // supertest connects over loopback; nginx would append the real client.
+  const FORWARDED = '203.0.113.7, 198.51.100.2';
+
+  it('ignores X-Forwarded-For by default: anyone could forge it', async () => {
+    const app = await createTestApp({ controllers: [ClientIpController] });
+    try {
+      const res = await request(app.getHttpServer())
+        .get('/api/client-ip')
+        .set('X-Forwarded-For', FORWARDED)
+        .expect(200);
+
+      expect(res.body.ip).not.toMatch(/203\.0\.113\.7|198\.51\.100\.2/);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it.each([
+    [1, '198.51.100.2'],
+    [2, '203.0.113.7'],
+  ])(
+    'with TRUST_PROXY_HOPS=%i, reads the client that many hops back',
+    async (hops, expected) => {
+      const app = await createAppWithProxyHops(hops);
+      try {
+        const res = await request(app.getHttpServer())
+          .get('/api/client-ip')
+          .set('X-Forwarded-For', FORWARDED)
+          .expect(200);
+
+        expect(res.body.ip).toBe(expected);
+      } finally {
+        await app.close();
+      }
+    },
+  );
 });

@@ -52,8 +52,16 @@ The API reads these variables. They are validated at startup in [src/config/env.
 | `DB_PORT`                                      | no       | `5432`         | PostgreSQL port (`5433` locally, see `.env.example`)                          |
 | `CORS_ORIGINS`                                 | **yes**  |                | Comma-separated list of allowed browser origins                               |
 | `SWAGGER_ENABLED`                              | no       | `false`        | Serve the API docs. Keep it off in production.                                |
+| `JWT_ACCESS_SECRET`                            | **yes**  |                | Signs access tokens; 32+ characters (`openssl rand -base64 48`)               |
+| `JWT_ACCESS_TTL`                               | no       | `900`          | Access token lifetime, in seconds                                             |
+| `REFRESH_TOKEN_TTL_DAYS`                       | no       | `7`            | A refresh token expires after this many days without use                      |
+| `REFRESH_TOKEN_MAX_TTL_DAYS`                   | no       | `30`           | A session ends this many days after login (at least the idle lifetime)        |
+| `BCRYPT_ROUNDS`                                | no       | `12`           | Password hashing cost; at least `10` in production (`4` in the e2e tests)     |
+| `TRUST_PROXY_HOPS`                             | no       | `0`            | Reverse proxies in front of the API; `0` ignores `X-Forwarded-For`            |
 
 `POSTGRES_*` and `MAILPIT_*` in `.env` only configure Docker Compose; the API doesn't read them.
+
+The `JWT_ACCESS_SECRET` in `.env.example` is for local development only: with `NODE_ENV=production` the app refuses to start with it. Rotating the secret invalidates every access token at once, but signs no one out: clients get a 401, refresh and carry on (refresh tokens aren't JWTs, so they keep working).
 
 ## Scripts
 
