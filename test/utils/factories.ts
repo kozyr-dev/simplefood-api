@@ -1,3 +1,4 @@
+import bcrypt from 'bcrypt';
 import type { DataSource } from 'typeorm';
 import { BlogCategory } from '@/blog/entities/blog-category.entity';
 import { BlogPost } from '@/blog/entities/blog-post.entity';
@@ -13,6 +14,7 @@ import { Page } from '@/content/entities/page.entity';
 import { validateSectionData } from '@/content/entities/section-data';
 import { SiteSettings } from '@/content/entities/site-settings.entity';
 import { Media } from '@/media/entities/media.entity';
+import { User } from '@/users/entities/user.entity';
 
 /*
  * Test data factories: save a valid row with sensible defaults, so each test
@@ -216,4 +218,33 @@ export async function createPage(
     ),
   );
   return page;
+}
+
+/** The password of every createUser() user unless a test sets another. */
+export const TEST_PASSWORD = 'correct horse battery';
+
+/**
+ * E.g. `createUser(ds, { role: UserRole.Admin })` or
+ * `createUser(ds, { password: 'other secret' })`. Hashes with bcrypt's
+ * minimum cost (4), as BCRYPT_ROUNDS does in the e2e tests.
+ */
+export async function createUser(
+  dataSource: DataSource,
+  {
+    password = TEST_PASSWORD,
+    ...overrides
+  }: Partial<User> & { password?: string } = {},
+): Promise<User> {
+  const n = next();
+  const repository = dataSource.getRepository(User);
+  return repository.save(
+    repository.create({
+      username: `User ${n}`,
+      email: `user${n}@example.com`,
+      passwordHash: await bcrypt.hash(password, 4),
+      phone: null,
+      address: null,
+      ...overrides,
+    }),
+  );
 }
