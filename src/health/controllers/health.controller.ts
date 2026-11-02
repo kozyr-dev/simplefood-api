@@ -5,11 +5,13 @@ import {
   HealthCheckService,
   TypeOrmHealthIndicator,
 } from '@nestjs/terminus';
+import { Public } from '@/auth/decorators/public.decorator';
 import { HealthCheckFilter } from '../filters/health-check.filter';
 
 // Explicit tag (not the auto-generated "Health"): renaming the class must not
 // rename the public docs section or the group in generated frontend clients.
 @ApiTags('health')
+@Public()
 @Controller('health')
 @UseFilters(HealthCheckFilter)
 export class HealthController {

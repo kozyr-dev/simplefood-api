@@ -3,8 +3,10 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from '@/app.module';
 import { configureApp } from '@/app.setup';
+import { Public } from '@/auth/decorators/public.decorator';
 
 /** Test-only route: any test that needs "some endpoint that returns 200". */
+@Public()
 @Controller('ping')
 export class PingController {
   @Get()

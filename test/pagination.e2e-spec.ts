@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource, Repository } from 'typeorm';
+import { Public } from '@/auth/decorators/public.decorator';
 import { ApiPaginatedResponse } from '@/common/http/api-responses.decorator';
 import { PaginationQueryDto } from '@/common/http/pagination-query.dto';
 import { paginate, toSkipTake } from '@/common/http/responses';
@@ -20,6 +21,7 @@ import { createTestApp } from './utils/test-app';
  * findAndCount + toSkipTake, paginate, mapper, Swagger decorator), so the
  * whole pagination pattern is tested end to end before the first feature.
  */
+@Public()
 @Controller('pagination-test')
 class PaginationTestController {
   constructor(

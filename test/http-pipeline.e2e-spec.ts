@@ -21,6 +21,7 @@ import {
 } from 'class-validator';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { Public } from '@/auth/decorators/public.decorator';
 import { createTestApp } from './utils/test-app';
 
 /*
@@ -51,6 +52,7 @@ class PipelineTestDto {
   password?: string;
 }
 
+@Public()
 @Controller('pipeline-test')
 class PipelineTestController {
   @Post()
@@ -71,6 +73,7 @@ class PipelineTestController {
 }
 
 /** Test-only: the client address Express resolved (`req.ip`). */
+@Public()
 @Controller('client-ip')
 class ClientIpController {
   @Get()

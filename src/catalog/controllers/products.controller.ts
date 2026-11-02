@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiNotFoundResponse, ApiTags } from '@nestjs/swagger';
+import { Public } from '@/auth/decorators/public.decorator';
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 import {
   ApiDataResponse,
@@ -11,6 +12,7 @@ import { ProductDto } from '../dto/product.dto';
 import { ProductsService } from '../services/products.service';
 
 @ApiTags('catalog')
+@Public()
 @Controller('products')
 export class ProductsController {
   constructor(private readonly products: ProductsService) {}

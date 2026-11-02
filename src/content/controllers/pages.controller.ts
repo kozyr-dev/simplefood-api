@@ -1,5 +1,6 @@
 import { Controller, Get, Param } from '@nestjs/common';
 import { ApiNotFoundResponse, ApiTags } from '@nestjs/swagger';
+import { Public } from '@/auth/decorators/public.decorator';
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 import { ApiDataResponse } from '@/common/http/api-responses.decorator';
 import type { DataResponse } from '@/common/http/responses';
@@ -7,6 +8,7 @@ import { PageDto } from '../dto/page.dto';
 import { PagesService } from '../services/pages.service';
 
 @ApiTags('content')
+@Public()
 @Controller('pages')
 export class PagesController {
   constructor(private readonly pages: PagesService) {}

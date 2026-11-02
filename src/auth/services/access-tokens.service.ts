@@ -2,7 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { JwtService, type JwtModuleOptions } from '@nestjs/jwt';
 import authConfig, { type AuthConfig } from '@/config/auth.config';
 import { UserRole } from '@/users/entities/user.entity';
-import type { AuthUser } from '../auth-user';
+import type { AuthUser } from '../types/auth.types';
 
 /**
  * What an access token carries: the user id and role, nothing personal

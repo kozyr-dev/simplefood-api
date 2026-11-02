@@ -1,3 +1,4 @@
+import type { IncomingMessage } from 'node:http';
 import type { UserRole } from '@/users/entities/user.entity';
 
 /**
@@ -8,3 +9,6 @@ export interface AuthUser {
   id: string;
   role: UserRole;
 }
+
+/** A request after JwtAuthGuard: `user` is set on every non-public route. */
+export type AuthRequest = IncomingMessage & { user?: AuthUser };

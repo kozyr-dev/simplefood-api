@@ -4,11 +4,13 @@ import type { Params } from 'nestjs-pino';
 import type { Options } from 'pino-http';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { Public } from '@/auth/decorators/public.decorator';
 import { REQUEST_ID_HEADER } from '@/common/logging/constants';
 import loggerConfig from '@/config/logger.config';
 import { createTestApp, UUID } from './utils/test-app';
 
 /** Test-only routes; registered only in this testing module. */
+@Public()
 @Controller('logging-test')
 class LoggingTestController {
   @Get('crash')

@@ -1,7 +1,7 @@
 import { JwtService } from '@nestjs/jwt';
 import type { AuthConfig } from '@/config/auth.config';
 import { UserRole } from '@/users/entities/user.entity';
-import type { AuthUser } from '../auth-user';
+import type { AuthUser } from '../types/auth.types';
 import { AccessTokensService, jwtModuleOptions } from './access-tokens.service';
 
 const config = {

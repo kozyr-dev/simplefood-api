@@ -5,6 +5,7 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { Public } from '@/auth/decorators/public.decorator';
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 import { ApiDataResponse } from '@/common/http/api-responses.decorator';
 import type { DataResponse } from '@/common/http/responses';
@@ -13,6 +14,7 @@ import { MenuKey } from '../entities/menu.entity';
 import { MenusService } from '../services/menus.service';
 
 @ApiTags('content')
+@Public()
 @Controller('menus')
 export class MenusController {
   constructor(private readonly menus: MenusService) {}
