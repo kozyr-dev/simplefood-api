@@ -8,6 +8,7 @@ import { CatalogModule } from '@/catalog/catalog.module';
 import { ContentModule } from '@/content/content.module';
 import { BlogModule } from '@/blog/blog.module';
 import { UsersModule } from '@/users/users.module';
+import { AuthModule } from '@/auth/auth.module';
 import databaseConfig from '@/config/database.config';
 import validationSchema from '@/config/env.validation';
 import loggerConfig from '@/config/logger.config';
@@ -27,6 +28,7 @@ import loggerConfig from '@/config/logger.config';
     ContentModule,
     BlogModule,
     UsersModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
