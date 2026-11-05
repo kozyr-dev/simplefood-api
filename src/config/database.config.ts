@@ -2,6 +2,7 @@ import { extname, join } from 'node:path';
 import { registerAs } from '@nestjs/config';
 import { DataSourceOptions } from 'typeorm';
 import { SnakeNamingStrategy } from '@/database/snake-naming.strategy';
+import { TypeOrmLogger } from '@/database/typeorm-logger';
 
 /**
  * Database config under the `database` namespace: the single source of truth
@@ -33,7 +34,8 @@ export default registerAs('database', (): DataSourceOptions => ({
   // Schema changes only via reviewed migrations, never auto-sync.
   synchronize: false,
 
-  logging: ['error', 'warn', 'migration'],
+  // Failed queries, warnings and migrations, without query parameters.
+  logger: new TypeOrmLogger(['error', 'warn', 'migration']),
 
   migrationsTableName: 'migrations',
   // Migrations run as an explicit deploy step (`npm run migration:run`), not on boot.
