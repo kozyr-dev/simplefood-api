@@ -1,10 +1,19 @@
 import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { minutes, Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '@/auth/decorators/current-user.decorator';
 import { AuthThrottlerGuard } from '@/auth/guards/auth-throttler.guard';
 import type { AuthUser } from '@/auth/types/auth.types';
-import { ApiDataResponse } from '@/common/http/api-responses.decorator';
+import { ErrorResponseDto } from '@/common/filters/error-response.dto';
+import {
+  ApiAuth,
+  ApiDataResponse,
+  ApiRateLimited,
+} from '@/common/http/api-responses.decorator';
 import { NoStore } from '@/common/http/no-store.decorator';
 import type { DataResponse } from '@/common/http/responses';
 import { UpdateMeDto } from '../dto/update-me.dto';
@@ -17,6 +26,7 @@ import { UsersService } from '../services/users.service';
  * @Public()); personal data, so @NoStore().
  */
 @ApiTags('users')
+@ApiAuth()
 @Controller('users')
 export class UsersController {
   constructor(private readonly users: UsersService) {}
@@ -39,6 +49,18 @@ export class UsersController {
   @Throttle({ default: { limit: 10, ttl: minutes(1) } })
   @NoStore()
   @ApiDataResponse(UserDto)
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description:
+      'Validation failed; a new email without `currentPassword` ' +
+      '(`CURRENT_PASSWORD_REQUIRED`); or `currentPassword` is wrong (`WRONG_PASSWORD`).',
+  })
+  @ApiConflictResponse({
+    type: ErrorResponseDto,
+    description:
+      'The email (`EMAIL_TAKEN`) or username (`USERNAME_TAKEN`) is in use, in any letter case.',
+  })
+  @ApiRateLimited()
   async updateMe(
     @CurrentUser() caller: AuthUser,
     @Body() dto: UpdateMeDto,

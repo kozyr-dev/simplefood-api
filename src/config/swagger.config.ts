@@ -51,10 +51,23 @@ export function buildSwaggerDocumentConfig() {
         'Liveness check for Docker and uptime monitoring (outside the /api prefix).',
       )
       .addTag('catalog', 'Products and product categories.')
-      .addTag('content', 'Site-wide settings and navigation menus.')
+      .addTag('content', 'Site-wide settings, navigation menus and pages.')
       .addTag('blog', 'News posts and their categories.')
-      // JWT scheme for phase 3; protected endpoints then add @ApiBearerAuth().
-      .addBearerAuth()
+      .addTag(
+        'auth',
+        'Accounts and sessions: register, log in, refresh, log out, change ' +
+          'the password. Each refresh token works once: store the new one.',
+      )
+      .addTag('users', "The logged-in user's own account.")
+      // Routes that need a login say so with ApiAuth() (common/http).
+      .addBearerAuth({
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description:
+          'The `accessToken` from login, register or refresh. Short-lived ' +
+          '(JWT_ACCESS_TTL, 15 minutes by default).',
+      })
       // Errors any endpoint can return, in the shape AllExceptionsFilter sends.
       .addGlobalResponse(
         {

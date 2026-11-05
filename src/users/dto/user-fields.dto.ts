@@ -35,7 +35,7 @@ export class UserFieldsDto {
   email: string;
 
   /**
-   * `null` removes it.
+   * Contact phone, optional: `null` for none.
    * @example "+380 67 123 45 67"
    */
   @IsOptional()
@@ -46,7 +46,7 @@ export class UserFieldsDto {
   phone?: string | null;
 
   /**
-   * Delivery address. `null` removes it.
+   * Delivery address, optional: `null` for none.
    * @example "Kyiv, Khreshchatyk St, 1, apt. 5"
    */
   @IsOptional()

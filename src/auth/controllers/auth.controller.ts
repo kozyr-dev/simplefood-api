@@ -6,14 +6,27 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNoContentResponse,
+  ApiTags,
+  ApiUnauthorizedResponse,
+} from '@nestjs/swagger';
 import { hours, minutes, Throttle } from '@nestjs/throttler';
+import { ErrorResponseDto } from '@/common/filters/error-response.dto';
+import {
+  ApiAuth,
+  ApiDataResponse,
+  ApiRateLimited,
+} from '@/common/http/api-responses.decorator';
 import { NoStore } from '@/common/http/no-store.decorator';
 import type { DataResponse } from '@/common/http/responses';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { Public } from '../decorators/public.decorator';
-import type { AuthResultDto } from '../dto/auth-result.dto';
-import type { AuthTokensDto } from '../dto/auth-tokens.dto';
+import { AuthResultDto } from '../dto/auth-result.dto';
+import { AuthTokensDto } from '../dto/auth-tokens.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
@@ -26,6 +39,7 @@ import type { AuthUser } from '../types/auth.types';
 @ApiTags('auth')
 @Controller('auth')
 @UseGuards(AuthThrottlerGuard)
+@ApiRateLimited()
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
@@ -35,6 +49,12 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: hours(1) } })
   @NoStore()
   @HttpCode(HttpStatus.CREATED)
+  @ApiDataResponse(AuthResultDto, { status: HttpStatus.CREATED })
+  @ApiConflictResponse({
+    type: ErrorResponseDto,
+    description:
+      'The email (`EMAIL_TAKEN`) or username (`USERNAME_TAKEN`) is in use, in any letter case.',
+  })
   async register(
     @Body() dto: RegisterDto,
   ): Promise<DataResponse<AuthResultDto>> {
@@ -50,6 +70,17 @@ export class AuthController {
   })
   @NoStore()
   @HttpCode(HttpStatus.OK)
+  @ApiDataResponse(AuthResultDto)
+  @ApiUnauthorizedResponse({
+    type: ErrorResponseDto,
+    description:
+      'Wrong identifier or password (`INVALID_CREDENTIALS`); the response does not say which.',
+  })
+  @ApiForbiddenResponse({
+    type: ErrorResponseDto,
+    description:
+      'The password is right but the account is blocked (`ACCOUNT_BLOCKED`).',
+  })
   async login(@Body() dto: LoginDto): Promise<DataResponse<AuthResultDto>> {
     return { data: await this.auth.login(dto) };
   }
@@ -63,6 +94,13 @@ export class AuthController {
   @Throttle({ default: { limit: 30, ttl: minutes(1) } })
   @NoStore()
   @HttpCode(HttpStatus.OK)
+  @ApiDataResponse(AuthTokensDto)
+  @ApiUnauthorizedResponse({
+    type: ErrorResponseDto,
+    description:
+      'Unknown, expired or already used (`INVALID_REFRESH_TOKEN`): log in again. ' +
+      'Reusing a used token ends its whole session.',
+  })
   async refresh(
     @Body() { refreshToken }: RefreshTokenDto,
   ): Promise<DataResponse<AuthTokensDto>> {
@@ -76,6 +114,9 @@ export class AuthController {
   @Public()
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({
+    description: 'The session has ended, or there was none to end.',
+  })
   async logout(@Body() { refreshToken }: RefreshTokenDto): Promise<void> {
     await this.auth.logout(refreshToken);
   }
@@ -86,6 +127,13 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: minutes(1) } })
   @NoStore()
   @HttpCode(HttpStatus.OK)
+  @ApiAuth()
+  @ApiDataResponse(AuthResultDto)
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description:
+      'Validation failed, or `currentPassword` is wrong (`WRONG_PASSWORD`).',
+  })
   async changePassword(
     @CurrentUser() user: AuthUser,
     @Body() dto: ChangePasswordDto,

@@ -1,8 +1,17 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, type Type } from '@nestjs/common';
+import { GUARDS_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { ConfigService } from '@nestjs/config';
-import type { OpenAPIObject } from '@nestjs/swagger';
+import {
+  DiscoveryModule,
+  DiscoveryService,
+  MetadataScanner,
+  Reflector,
+} from '@nestjs/core';
+import type { OpenAPIObject, OperationObject } from '@nestjs/swagger';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { IsPublic } from '@/auth/decorators/public.decorator';
+import { AuthThrottlerGuard } from '@/auth/guards/auth-throttler.guard';
 import { readApiVersion } from '@/config/swagger.config';
 import { createTestApp } from './utils/test-app';
 
@@ -13,6 +22,7 @@ import { createTestApp } from './utils/test-app';
  */
 function createApp(swaggerEnabled: boolean): Promise<INestApplication<App>> {
   return createTestApp({
+    imports: [DiscoveryModule],
     beforeConfigure: (app) => {
       const config = app.get(ConfigService);
       const realGet = config.get.bind(config);
@@ -24,6 +34,59 @@ function createApp(swaggerEnabled: boolean): Promise<INestApplication<App>> {
     },
   });
 }
+
+interface Route {
+  /** As operationIdFactory names it: `Auth_login`. */
+  operationId: string;
+  isPublic: boolean;
+  rateLimited: boolean;
+}
+
+/**
+ * Every route handler in the app, read from the same metadata the guards
+ * use, so the checks below also cover routes added later.
+ */
+function routesOf(app: INestApplication): Route[] {
+  const reflector = app.get(Reflector);
+  const scanner = new MetadataScanner();
+  const guardsOf = (target: object) =>
+    (Reflect.getMetadata(GUARDS_METADATA, target) ?? []) as unknown[];
+
+  return app
+    .get(DiscoveryService)
+    .getControllers()
+    .flatMap(({ metatype }) => {
+      const controller = metatype as Type;
+      const prototype = controller.prototype as Record<
+        string,
+        (...args: never[]) => unknown
+      >;
+      return scanner
+        .getAllMethodNames(prototype)
+        .filter((name) => Reflect.hasMetadata(PATH_METADATA, prototype[name]))
+        .map((name) => {
+          const handler = prototype[name];
+          return {
+            operationId: `${controller.name.replace(/Controller$/, '')}_${name}`,
+            isPublic:
+              reflector.getAllAndOverride(IsPublic, [handler, controller]) ===
+              true,
+            rateLimited: [
+              ...guardsOf(controller),
+              ...guardsOf(handler),
+            ].includes(AuthThrottlerGuard),
+          };
+        });
+    });
+}
+
+const ERROR_BODY = {
+  content: {
+    'application/json': {
+      schema: { $ref: '#/components/schemas/ErrorResponseDto' },
+    },
+  },
+};
 
 /*
  * Note: the @nestjs/swagger CLI plugin doesn't run under Jest (ts-jest uses
@@ -104,9 +167,20 @@ describe('Swagger (e2e)', () => {
 
       it('groups endpoints under explicit tags with descriptions', () => {
         expect(document.paths['/health'].get?.tags).toEqual(['health']);
-        expect(document.tags).toEqual(
-          expect.arrayContaining([expect.objectContaining({ name: 'health' })]),
-        );
+        expect(document.tags?.map((tag) => tag.name)).toEqual([
+          'health',
+          'catalog',
+          'content',
+          'blog',
+          'auth',
+          'users',
+        ]);
+        for (const tag of document.tags ?? []) {
+          expect(tag.description).toEqual(expect.any(String));
+        }
+        expect(
+          document.tags?.find((tag) => tag.name === 'content')?.description,
+        ).toContain('pages');
       });
 
       it('documents the shared error shape on every endpoint', () => {
@@ -129,11 +203,142 @@ describe('Swagger (e2e)', () => {
         expect(document.components?.securitySchemes?.bearer).toMatchObject({
           type: 'http',
           scheme: 'bearer',
+          bearerFormat: 'JWT',
         });
       });
 
       it('is served as JSON only (no YAML copy)', async () => {
         await http().get('/api/docs-yaml').expect(404);
+      });
+    });
+
+    describe('auth and rate limits', () => {
+      let routes: Route[];
+      let operations: Map<string, OperationObject>;
+
+      beforeAll(() => {
+        routes = routesOf(app);
+        operations = new Map(
+          Object.values(document.paths)
+            .flatMap((item) => Object.values(item) as OperationObject[])
+            .map((operation) => [operation.operationId ?? '', operation]),
+        );
+      });
+
+      /** The documented operation for a route; fails if it's missing. */
+      const operationOf = (operationId: string) => {
+        const operation = operations.get(operationId);
+        expect(operation).toBeDefined();
+        return operation as OperationObject;
+      };
+
+      it('finds the routes to check, public and protected', () => {
+        const ids = routes.map((route) => route.operationId);
+
+        expect(ids).toEqual(
+          expect.arrayContaining([
+            'Health_check',
+            'Products_findAll',
+            'Auth_login',
+            'Auth_changePassword',
+            'Users_getMe',
+          ]),
+        );
+        expect(routes.filter((route) => !route.isPublic)).toHaveLength(3);
+      });
+
+      it('shows the bearer scheme and its 401 on every route that needs a login', () => {
+        for (const { operationId } of routes.filter((r) => !r.isPublic)) {
+          const operation = operationOf(operationId);
+
+          expect({ operationId, security: operation.security }).toEqual({
+            operationId,
+            security: [{ bearer: [] }],
+          });
+          expect(operation.responses['401']).toMatchObject({
+            ...ERROR_BODY,
+            headers: { 'WWW-Authenticate': expect.any(Object) },
+          });
+        }
+      });
+
+      it('shows no login requirement on public routes', () => {
+        for (const { operationId } of routes.filter((r) => r.isPublic)) {
+          expect({
+            operationId,
+            security: operationOf(operationId).security,
+          }).toEqual({ operationId, security: undefined });
+        }
+      });
+
+      it('documents the 429 and Retry-After on every rate-limited route', () => {
+        const limited = routes.filter((route) => route.rateLimited);
+        expect(limited.map((route) => route.operationId).sort()).toEqual([
+          'Auth_changePassword',
+          'Auth_login',
+          'Auth_logout',
+          'Auth_refresh',
+          'Auth_register',
+          'Users_updateMe',
+        ]);
+
+        for (const { operationId } of limited) {
+          expect(operationOf(operationId).responses['429']).toMatchObject({
+            ...ERROR_BODY,
+            headers: { 'Retry-After': { schema: { type: 'integer' } } },
+          });
+        }
+        expect(operationOf('Users_getMe').responses['429']).toBeUndefined();
+      });
+
+      it.each([
+        ['Auth_register', ['201', '409']],
+        ['Auth_login', ['200', '401', '403']],
+        ['Auth_refresh', ['200', '401']],
+        ['Auth_logout', ['204']],
+        ['Auth_changePassword', ['200', '400', '401']],
+        ['Users_getMe', ['200', '401']],
+        ['Users_updateMe', ['200', '400', '401', '409']],
+      ])('%s documents its own responses: %j', (operationId, statuses) => {
+        const { responses } = operationOf(operationId);
+
+        expect(Object.keys(responses)).toEqual(
+          expect.arrayContaining(statuses),
+        );
+        for (const status of statuses.filter((s) => Number(s) >= 400)) {
+          expect(responses[status]).toMatchObject({
+            ...ERROR_BODY,
+            description: expect.any(String),
+          });
+        }
+      });
+
+      it.each([
+        ['Auth_register', '201', 'AuthResultDto'],
+        ['Auth_login', '200', 'AuthResultDto'],
+        ['Auth_refresh', '200', 'AuthTokensDto'],
+        ['Auth_changePassword', '200', 'AuthResultDto'],
+        ['Users_getMe', '200', 'UserDto'],
+        ['Users_updateMe', '200', 'UserDto'],
+      ])('%s answers %s with { data: %s }', (operationId, status, model) => {
+        expect(operationOf(operationId).responses[status]).toMatchObject({
+          content: {
+            'application/json': {
+              schema: {
+                required: ['data'],
+                properties: {
+                  data: { $ref: `#/components/schemas/${model}` },
+                },
+              },
+            },
+          },
+        });
+      });
+
+      it('has no body for the 204 of logout', () => {
+        expect(operationOf('Auth_logout').responses['204']).toEqual({
+          description: expect.any(String),
+        });
       });
     });
   });
