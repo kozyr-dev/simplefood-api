@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import type { LogLevel } from 'typeorm';
 import { TypeOrmLogger } from './typeorm-logger';
 
 describe('TypeOrmLogger', () => {
@@ -47,6 +48,19 @@ describe('TypeOrmLogger', () => {
     expect(log).toHaveBeenCalledWith(
       'Migration AddUsers1793291621423 has been executed',
     );
+  });
+
+  it('reads levels given as a function on every call (the CLI changes them per command)', () => {
+    let levels: LogLevel[] = ['error'];
+    const cliLogger = new TypeOrmLogger(() => levels);
+    const log = jest.spyOn(Logger.prototype, 'log').mockReturnValue();
+
+    cliLogger.logSchemaBuild('[X] 1 EnableCitext1792424482291');
+    expect(log).not.toHaveBeenCalled();
+
+    levels = ['schema'];
+    cliLogger.logSchemaBuild('[X] 1 EnableCitext1792424482291');
+    expect(log).toHaveBeenCalledWith('[X] 1 EnableCitext1792424482291');
   });
 
   it('skips the kinds it was not asked for: every query', () => {

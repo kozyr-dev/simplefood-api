@@ -1,7 +1,8 @@
 import { INestApplication } from '@nestjs/common';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { DataSource, type Repository } from 'typeorm';
+import { DataSource, QueryFailedError, type Repository } from 'typeorm';
 import type { UserDto } from '@/users/dto/user.dto';
 import { User, UserRole } from '@/users/entities/user.entity';
 import { bearer, loginAs } from './utils/auth';
@@ -33,6 +34,10 @@ describe('Users (e2e)', () => {
       address: 'Kyiv, Khreshchatyk St, 1',
     });
     ({ accessToken: token } = await loginAs(app, user));
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   afterAll(async () => {
@@ -291,6 +296,32 @@ describe('Users (e2e)', () => {
 
         expect(errorOf(res)).toMatchObject({ code: 'USERNAME_TAKEN' });
         expect((await stored()).username).toBe('Ivan Petrenko');
+      });
+    });
+
+    /** A Postgres error as the pg driver reports it. */
+    const pgError = (code: string, constraint: string) =>
+      new QueryFailedError(
+        'UPDATE "app_user" ...',
+        [],
+        Object.assign(new Error('query failed'), { code, constraint }),
+      );
+
+    it.each([
+      ['a lost connection', new Error('Connection terminated unexpectedly')],
+      ['another kind of violation', pgError('23514', 'CHK_app_user_email')],
+      ['a duplicate on another unique index', pgError('23505', 'UQ_other')],
+    ])('answers %s with a generic 500, never a 409', async (_, error) => {
+      jest
+        .spyOn(app.get<Repository<User>>(getRepositoryToken(User)), 'update')
+        .mockRejectedValueOnce(error);
+
+      const res = await patchMe({ username: 'Renamed' }).expect(500);
+
+      expect(errorOf(res)).toEqual({
+        status: 500,
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'Internal server error',
       });
     });
   });

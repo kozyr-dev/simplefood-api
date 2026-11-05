@@ -3,6 +3,7 @@ import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
 import databaseConfig from '@/config/database.config';
 import validationSchema from '@/config/env.validation';
+import { TypeOrmLogger } from './typeorm-logger';
 
 /**
  * Entry point for the TypeORM CLI only (migration:generate/run/revert/show).
@@ -32,4 +33,12 @@ for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
   }
 }
 
-export default new DataSource(databaseConfig());
+const dataSource: DataSource = new DataSource({
+  ...databaseConfig(),
+  // Each CLI command sets the levels it prints (`migration:show` lists the
+  // migrations at `schema`, `migration:run` echoes each `query`); read them
+  // from the data source, not fixed at construction.
+  logger: new TypeOrmLogger(() => dataSource.options.logging),
+});
+
+export default dataSource;

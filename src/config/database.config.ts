@@ -1,8 +1,11 @@
 import { extname, join } from 'node:path';
 import { registerAs } from '@nestjs/config';
-import { DataSourceOptions } from 'typeorm';
+import { DataSourceOptions, type LogLevel } from 'typeorm';
 import { SnakeNamingStrategy } from '@/database/snake-naming.strategy';
 import { TypeOrmLogger } from '@/database/typeorm-logger';
+
+/** Failed queries, warnings and migrations. The CLI sets its own per command. */
+const LOG_LEVELS: LogLevel[] = ['error', 'warn', 'migration'];
 
 /**
  * Database config under the `database` namespace: the single source of truth
@@ -34,8 +37,9 @@ export default registerAs('database', (): DataSourceOptions => ({
   // Schema changes only via reviewed migrations, never auto-sync.
   synchronize: false,
 
-  // Failed queries, warnings and migrations, without query parameters.
-  logger: new TypeOrmLogger(['error', 'warn', 'migration']),
+  // Through Nest's logger (pino), never with query parameters.
+  logging: LOG_LEVELS,
+  logger: new TypeOrmLogger(LOG_LEVELS),
 
   migrationsTableName: 'migrations',
   // Migrations run as an explicit deploy step (`npm run migration:run`), not on boot.

@@ -3,6 +3,7 @@ import { Controller, Get, INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { DataSource } from 'typeorm';
 import { CurrentUser } from '@/auth/decorators/current-user.decorator';
 import { Public } from '@/auth/decorators/public.decorator';
 import { Roles } from '@/auth/decorators/roles.decorator';
@@ -10,7 +11,11 @@ import { AccessTokensService } from '@/auth/services/access-tokens.service';
 import type { AuthUser } from '@/auth/types/auth.types';
 import authConfig, { type AuthConfig } from '@/config/auth.config';
 import { UserRole } from '@/users/entities/user.entity';
+import { loginAs } from './utils/auth';
+import { resetDatabase } from './utils/database';
+import { createUser } from './utils/factories';
 import { createTestApp, UUID } from './utils/test-app';
+import { resetRateLimits } from './utils/throttler';
 
 @Controller('guard-test')
 class GuardTestController {
@@ -165,6 +170,19 @@ describe('Auth guards (e2e)', () => {
 
     it('checks the login before the role: no token is 401, not 403', async () => {
       await get('admins').expect(401);
+    });
+
+    it('takes the role from the account: real logins as admin and customer', async () => {
+      const dataSource = app.get(DataSource);
+      await resetDatabase(dataSource);
+      resetRateLimits(app);
+      const admin = await createUser(dataSource, { role: UserRole.Admin });
+      const customer = await createUser(dataSource);
+
+      await get('admins', (await loginAs(app, admin)).accessToken).expect(200);
+      await get('admins', (await loginAs(app, customer)).accessToken).expect(
+        403,
+      );
     });
   });
 

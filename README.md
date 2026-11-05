@@ -12,6 +12,8 @@ The migration is planned in phases in [docs/backend-migration-plan.md](docs/back
 | Framework | NestJS 12                                                             |
 | Database  | PostgreSQL 18, TypeORM 1.x, migrations only (never `synchronize`)     |
 | Logging   | `nestjs-pino`: JSON in production, pretty in development, request IDs |
+| Auth      | JWT access tokens (`@nestjs/jwt`), rotating refresh tokens, bcrypt    |
+| Limits    | `@nestjs/throttler` on the auth routes only (no global limit)         |
 | API docs  | `@nestjs/swagger` (OpenAPI 3)                                         |
 | Tests     | Jest, Supertest, Testcontainers                                       |
 | Quality   | TypeScript strict, oxlint, Prettier, GitHub Actions                   |
@@ -61,7 +63,9 @@ The API reads these variables. They are validated at startup in [src/config/env.
 
 `POSTGRES_*` and `MAILPIT_*` in `.env` only configure Docker Compose; the API doesn't read them.
 
-The `JWT_ACCESS_SECRET` in `.env.example` is for local development only: with `NODE_ENV=production` the app refuses to start with it. Rotating the secret invalidates every access token at once, but signs no one out: clients get a 401, refresh and carry on (refresh tokens aren't JWTs, so they keep working).
+**Behind a reverse proxy, set `TRUST_PROXY_HOPS`.** Rate limits count per client IP. With the default `0`, the API sees the proxy's (or the Next server's) address for everyone, so the per-IP limits on register and refresh apply to the whole site at once. Set it to the number of proxies in front of the API, and make sure each one forwards `X-Forwarded-For`.
+
+**Generate `JWT_ACCESS_SECRET`** with `openssl rand -base64 48` (64 random characters). The value in `.env.example` is for local development only: with `NODE_ENV=production` the app refuses to start with it. Rotating the secret invalidates every access token at once, but signs no one out: clients get a 401, refresh and carry on (refresh tokens aren't JWTs, so they keep working).
 
 ## Scripts
 
@@ -91,6 +95,8 @@ The migration scripts (except `create`) build first and use the TypeORM CLI entr
   - **Every Jest worker gets its own copy of that database** (`CREATE DATABASE … TEMPLATE`; see [test/setup/worker-database.ts](test/setup/worker-database.ts)), so files running in parallel never see each other's data. `test/database.e2e-spec.ts` guards this.
   - **Files that write data** call `resetDatabase(dataSource)` in `beforeEach` ([test/utils/database.ts](test/utils/database.ts)), and create rows with the factories in [test/utils/factories.ts](test/utils/factories.ts) (`createMedia(dataSource, { width: null })`). Add a factory for each new entity.
   - Get a `DataSource` with `app.get(DataSource)` in tests that boot the app, or `openTestDataSource()` in tests that only use repositories.
+  - **Logged-in calls:** `createUser(dataSource, { role: UserRole.Admin })` (hashed at cost 4), then `const { accessToken } = await loginAs(app, user)` and `.set(bearer(accessToken))` ([test/utils/auth.ts](test/utils/auth.ts)). A test-only controller needs `@Public()` unless it is meant to require a login.
+  - **Rate limits** stay at their production values in tests. Files that call the limited routes call `resetRateLimits(app)` in `beforeEach` ([test/utils/throttler.ts](test/utils/throttler.ts)).
   - `test/migrations.e2e-spec.ts` checks the migrations themselves: they apply cleanly, the schema matches the entities, and every `down()` reverts.
 - The `@nestjs/swagger` CLI plugin doesn't run under Jest (`isolatedModules`), so DTO properties only appear in the docs of a real build.
 - **Coverage** is reported separately for each suite (`coverage/unit/`, `coverage/e2e/`), and the two complement each other. Unit tests cover pure logic; controllers, filters and the HTTP pipeline (`app.setup.ts`) are covered by the e2e tests. Both measure the same files: the exclusions (bootstrap, CLI entry, migrations, modules, entities, DTOs) are defined once, as `coverageExclusions` in [jest.config.ts](jest.config.ts).
@@ -114,10 +120,16 @@ src/
   app.setup.ts      HTTP pipeline shared with the e2e tests: security headers, /api prefix,
                     logger, CORS, pipes, exception filter, Swagger
   app.module.ts     root module: config, database, logger, feature modules
-  config/           env schema and `registerAs` namespaces (database, logger), Swagger setup
+  config/           env schema and `registerAs` namespaces (database, logger, auth), Swagger setup
   common/           cross-cutting code: exception filter + error DTOs, request IDs, pipes,
-                    validation error formatting, response envelope + pagination (http/)
-  database/         TypeORM CLI data source, naming strategy, entities/ (base entity, Seo), migrations/
+                    validation error formatting, response envelope + pagination, Swagger
+                    response decorators, @NoStore() (http/)
+  database/         TypeORM CLI data source, naming strategy, SQL logger (never logs parameters),
+                    entities/ (base entity, Seo), migrations/
+  auth/             sessions and access control: POST /api/auth/register, /login, /refresh,
+                    /logout, /change-password; the global JwtAuthGuard and RolesGuard,
+                    @Public(), @Roles(), @CurrentUser(), AuthThrottlerGuard
+  users/            accounts (User entity, PasswordService): GET and PATCH /api/users/me
   health/           GET /health (Terminus)
   media/            Media entity (uploaded files) and its response DTO
   catalog/          products and product categories: GET /api/products, /api/products/:slug,
@@ -128,7 +140,8 @@ src/
                     /api/blog-posts/:slug, /api/blog-categories
 test/
   setup/            Testcontainers global setup/teardown
-  utils/            createTestApp(), resetDatabase(), factories
+  utils/            createTestApp(), resetDatabase(), factories, loginAs() + bearer(),
+                    resetRateLimits()
   *.e2e-spec.ts     e2e suites
 docs/               migration plan
 ```
@@ -146,11 +159,14 @@ docs/               migration plan
     dto/           *.dto.ts (responses) and *.query.dto.ts (query filters)
     mappers/       entity -> DTO functions
     filters/       exception filters used only by this module (global ones live in common/)
+    guards/        *.guard.ts
+    decorators/    *.decorator.ts
+    types/         <feature>.types.ts (interfaces and types shared within the module)
   ```
 
   Keep the file suffixes (`.controller.ts`, `.dto.ts`, `.entity.ts`): the Swagger CLI plugin, the TypeORM entity pattern and the coverage exclusions find files by them.
 
-- **Imports:** use the `@/` alias (= `src/`) for anything outside the current folder, e.g. `import { Media } from '@/media/media.entity'`, and `./` within a folder. The same alias works in `test/` (as in the frontend). It's set up in four places:
+- **Imports:** relative (`./`, `../`) within a module, and the `@/` alias (= `src/`) across modules, e.g. `import { Media } from '@/media/entities/media.entity'`. Files at the root of `src/` and everything in `test/` use `@/` (as in the frontend). The alias is set up in four places:
   - `paths` in `tsconfig.json`; `nest build` rewrites it to relative paths in `dist/`
   - `moduleNameMapper` in both Jest configs
   - `tsconfig-paths/register` in `test/setup/global-setup.ts`, which Jest loads outside its module system
@@ -160,6 +176,12 @@ docs/               migration plan
   - `PaginationQueryDto`: extend it for list filters
   - `toSkipTake()` and `paginate()`: build the page
   - `@ApiPaginatedResponse(Dto)` and `@ApiDataResponse(Dto)`: document the envelope in Swagger, which can't infer generic types
+- **Authentication is on by default.** The global `JwtAuthGuard` refuses every route without a valid `Authorization: Bearer <accessToken>` (401 with `WWW-Authenticate`). Mark the public ones with `@Public()` (on the controller or the method).
+  - `@Roles(UserRole.Admin)` limits a route to roles (403 otherwise); `@CurrentUser()` gives the caller (`{ id, role }`, read from the token without a query).
+  - **Ownership comes from the token:** a route for the caller's own data uses `@CurrentUser()`, never an id from the URL (`/users/me`, not `/users/:id`).
+  - Document a protected route with `@ApiAuth()`, so Swagger shows the lock and the 401.
+  - **Rate limits:** a route that checks a password or creates accounts gets `@UseGuards(AuthThrottlerGuard)` with its own `@Throttle()`, plus `@ApiRateLimited()` for the docs. There is no global limit: every server-rendered page reaches the API from the Next server's single IP.
+  - Responses that carry tokens or personal data get `@NoStore()` (`Cache-Control: no-store`).
 - **Entities and responses:** controllers never return entities; they map them to response DTOs (e.g. `toMediaDto()`). Primary keys are UUIDv7 from Postgres (`AppBaseEntity`).
 - **Errors** always have one shape (documented as `ErrorResponseDto` in Swagger):
 
@@ -179,7 +201,7 @@ docs/               migration plan
 
 - **Validation:** request DTOs use `class-validator`. Unknown properties are rejected, there's no implicit type conversion, and strings are trimmed (except fields whose name contains `password`).
 - **Request IDs:** every response has an `X-Request-Id` header, and every log line of that request has the same `reqId`. A safe incoming `X-Request-Id` is reused.
-- **Logging:** use `new Logger(MyClass.name)` from `@nestjs/common`; it goes through pino automatically. `Authorization` and `Cookie` headers are redacted. Never log request bodies.
+- **Logging:** use `new Logger(MyClass.name)` from `@nestjs/common`; it goes through pino automatically. The `Authorization`, `Cookie` and `Set-Cookie` headers are redacted, and SQL is logged without its parameters (they can hold emails and password hashes). Never log request bodies, tokens or hashes.
 
 ## CI
 

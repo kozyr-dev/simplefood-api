@@ -1,5 +1,11 @@
 import { Logger } from '@nestjs/common';
-import { AbstractLogger, type LogLevel, type LogMessage } from 'typeorm';
+import {
+  AbstractLogger,
+  type LoggerOptions,
+  type LogLevel,
+  type LogMessage,
+  type LogMessageType,
+} from 'typeorm';
 
 /**
  * TypeORM's own logs (failed and slow queries, migrations) through Nest's
@@ -12,6 +18,27 @@ import { AbstractLogger, type LogLevel, type LogMessage } from 'typeorm';
  */
 export class TypeOrmLogger extends AbstractLogger {
   private readonly logger = new Logger('TypeORM');
+
+  /**
+   * `levels` can be a function, read on every call: the TypeORM CLI picks
+   * the levels per command (`dataSource.setOptions({ logging })`) but keeps
+   * a logger instance as it is, so the CLI data source passes
+   * `() => dataSource.options.logging`.
+   */
+  constructor(
+    private readonly levels: LoggerOptions | (() => LoggerOptions | undefined),
+  ) {
+    super(typeof levels === 'function' ? undefined : levels);
+  }
+
+  protected override isLogEnabledFor(
+    type?: LogLevel | LogMessageType,
+  ): boolean {
+    if (typeof this.levels === 'function') {
+      this.options = this.levels();
+    }
+    return super.isLogEnabledFor(type);
+  }
 
   protected writeLog(
     level: LogLevel,
@@ -32,7 +59,6 @@ export class TypeOrmLogger extends AbstractLogger {
         this.logger.warn(text);
         break;
       case 'query':
-      case 'schema':
         this.logger.debug(text);
         break;
       default:

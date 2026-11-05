@@ -57,8 +57,8 @@ api/src/
   config/            @nestjs/config + Joi env schema, registerAs namespaces
   database/          TypeORM DataSource, migrations/ (synchronize: false), seeds/
   common/            pagination DTO, response envelope {data, meta}, exception filter {error:{status,code,message,requestId,details?}}
-  auth/              local login, register, refresh (rotating, hashed in DB), logout/revoke, JWT guard, Roles guard
-  users/             me, update-me (ownership by token, not :id)
+  auth/              register, login, refresh (rotating, hashed in DB, reuse detection), logout, change-password; global JWT + Roles guards, rate limits
+  users/             User entity, password hashing; GET/PATCH me (ownership by token, not :id)
   catalog/           products, product-categories
   content/           pages + sections, menus, site-settings
   blog/              posts, categories
@@ -74,21 +74,21 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 
 ## Data model (TypeORM entities)
 
-| Entity                      | Key columns / relations                                                                                                                                                                                                                  |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `User`                      | email (unique), username (unique), passwordHash (bcrypt), phone, address, role enum `customer\|admin\|editor`, blocked, timestamps                                                                                                       |
-| `RefreshToken`              | user ManyToOne, tokenHash, expiresAt (idle 7d), familyExpiresAt (30d max), revokedAt                                                                                                                                                     |
-| `Media`                     | url, mime, size, width, height, alt, `formats` jsonb, folder                                                                                                                                                                             |
-| `ProductCategory`           | name, slug (unique), position                                                                                                                                                                                                            |
-| `Product`                   | slug, title, description, image → Media, weight, **calories**, **price `integer` in kopiykas** (exact sums; `pg` returns `numeric` as a string), available, featured, favorite, categories ManyToMany (join table `product_to_category`) |
-| `Order`                     | user ManyToOne (nullable), name, email, phone, address, shippingMethod enum, comments, status enum `new\|processing\|declined\|completed`, subtotal, `legacyDishesText` (migrated orders only)                                           |
-| `OrderItem`                 | order ManyToOne, product ManyToOne (nullable), **snapshot** title + unitPrice, quantity, lineTotal                                                                                                                                       |
-| `BlogCategory` / `BlogPost` | name/slug; title, slug, text (markdown), image → Media, seo (embedded), categories ManyToMany, publishedAt                                                                                                                               |
-| `Page`                      | slug (unique; the homepage is simply the page with slug `home`), title, seo (embedded), publishedAt                                                                                                                                     |
-| `PageSection`               | page ManyToOne, position, `type` enum (10 types), `data` jsonb validated per type (class-validator DTO per type); references stored as ids (productIds, categoryId, blogCategoryId, mediaIds) and **resolved on read**                   |
-| `Menu` / `MenuItem`         | key `header\|footer\|dropdown`; title, link, className, group `main\|list`, position                                                                                                                                                     |
-| `SiteSettings`              | single row: siteName, phone, address, workingHours, takingOrdersHours, facebook, instagram, seo                                                                                                                                          |
-| `ContactSubmission`         | name, email, message, handledAt                                                                                                                                                                                                          |
+| Entity                      | Key columns / relations                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`                      | table **`app_user`** (`user` is reserved in Postgres); email and username **`citext`**, unique regardless of case; username 2–50 characters, any script and spaces, no `@` or control characters (a DB check repeats the DTO rule); passwordHash (bcrypt, `select: false`; Strapi's `$2a$10$` hashes are kept and re-hashed at the next login); phone, address (≤ 500); role enum `customer\|editor\|admin`; blocked; timestamps |
+| `RefreshToken`              | user ManyToOne (`ON DELETE CASCADE`), **familyId** (one login session), tokenHash (SHA-256, unique; the token itself is never stored), expiresAt (idle 7d), familyExpiresAt (30d max), revokedAt (set on rotation, logout and revocation; kept for reuse detection)                                                                                                                                                              |
+| `Media`                     | url, mime, size, width, height, alt, `formats` jsonb, folder                                                                                                                                                                                                                                                                                                                                                                     |
+| `ProductCategory`           | name, slug (unique), position                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `Product`                   | slug, title, description, image → Media, weight, **calories**, **price `integer` in kopiykas** (exact sums; `pg` returns `numeric` as a string), available, featured, favorite, categories ManyToMany (join table `product_to_category`)                                                                                                                                                                                         |
+| `Order`                     | user ManyToOne (nullable), name, email, phone, address, shippingMethod enum, comments, status enum `new\|processing\|declined\|completed`, subtotal, `legacyDishesText` (migrated orders only)                                                                                                                                                                                                                                   |
+| `OrderItem`                 | order ManyToOne, product ManyToOne (nullable), **snapshot** title + unitPrice, quantity, lineTotal                                                                                                                                                                                                                                                                                                                               |
+| `BlogCategory` / `BlogPost` | name/slug; title, slug, text (markdown), image → Media, seo (embedded), categories ManyToMany, publishedAt                                                                                                                                                                                                                                                                                                                       |
+| `Page`                      | slug (unique; the homepage is simply the page with slug `home`), title, seo (embedded), publishedAt                                                                                                                                                                                                                                                                                                                              |
+| `PageSection`               | page ManyToOne, position, `type` enum (10 types), `data` jsonb validated per type (class-validator DTO per type); references stored as ids (productIds, categoryId, blogCategoryId, mediaIds) and **resolved on read**                                                                                                                                                                                                           |
+| `Menu` / `MenuItem`         | key `header\|footer\|dropdown`; title, link, className, group `main\|list`, position                                                                                                                                                                                                                                                                                                                                             |
+| `SiteSettings`              | single row: siteName, phone, address, workingHours, takingOrdersHours, facebook, instagram, seo                                                                                                                                                                                                                                                                                                                                  |
+| `ContactSubmission`         | name, email, message, handledAt                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 `Seo` is an embedded TypeORM class (`seo_title`, `seo_description`, `seo_share_image_id` → Media, `ON DELETE SET NULL`), used by settings, pages and blog posts. `shareImage` fixes the frontend's dead OG-image code path.
 
@@ -104,8 +104,12 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 - `GET /api/blog-posts?category=<slug>&page=&pageSize=`: published posts only, newest first; items carry an `excerpt`, not the full text.
 - `GET /api/blog-posts/:slug`: drafts and scheduled posts are a 404, like unknown slugs.
 - `GET /api/blog-categories`
-- `POST /api/auth/login | register | refresh | logout`: returns `{accessToken, refreshToken, user}`.
-- `GET /api/users/me`, `PATCH /api/users/me`
+- `POST /api/auth/register` (201) and `POST /api/auth/login`: `{data: {accessToken, expiresIn, refreshToken, refreshTokenExpiresAt, user}}`.
+- `POST /api/auth/refresh`: a new pair; the token sent is used up. A used token sent again after a 10 s grace window ends its whole session (reuse detection).
+- `POST /api/auth/logout`: 204, ends that session (also for an unknown token).
+- `POST /api/auth/change-password` (login needed): ends every session and returns a new pair. Forgot/reset password needs mail, so it's in phase 4.
+- `GET /api/users/me`, `PATCH /api/users/me`: changing the email needs `currentPassword`.
+- Every route needs `Authorization: Bearer <accessToken>` unless it's marked `@Public()`. Rate limits (no global limit): login 5/min per IP + identifier, then a 5-minute block; register 10/hour per IP; refresh and logout 30/min per IP; change-password 5/min and `PATCH /users/me` 10/min per account. A 429 carries `Retry-After`.
 - `POST /api/orders` with body `{items:[{productId, quantity}], name, phone, email, address, shippingMethod, comments}`. The server loads prices, rejects unavailable products, and computes totals. Guests may also order: user is optional and `email` is required.
 - `GET /api/orders/me`: order history (new feature).
 - `POST /api/contact`: rate-limited with `@nestjs/throttler`; sends a notification email.
@@ -135,10 +139,16 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
 
 - `src/shared/utils/helpers/api.ts`: rename `getStrapiURL` to `getApiURL`, drop the bracket-heavy `qs` usage and keep the envelope handling.
 - Entity API and type files: `src/entities/{Options,Menu,Product,PageData,BlogData,PostData,User,Order}/{api,types|model}`. Switch to the new endpoints and camelCase fields. The components that read `Body/Title/Name/Benefit/menuItem` (`SectionWizard`, the menu widgets, `NewsWidget`, `ProductList`) need their fields renamed.
-- `src/features/Auth/api/authenticatedFetch.ts`: rename the token fields.
-- `app/api/auth/{login,register,refresh,logout}/route.ts`: point at the new endpoints. `logout` should now also revoke the refresh token on the server.
+- `src/features/Auth/api/authenticatedFetch.ts`: rename the token fields (`jwt` → `accessToken`), and **make concurrent requests share one refresh** (a second refresh with the same token gets a 401).
+- `app/api/auth/{login,register,refresh,logout}/route.ts`: point at the new endpoints.
+  - Keep the refresh token in the httpOnly cookie: `maxAge` from `refreshTokenExpiresAt`, path narrowed to `/api/auth`. Store the new token after every refresh (the old one is used up).
+  - `register` must strip the refresh token from what it returns to the browser, like `login`.
+  - `logout` must send the refresh token to the API, so the session ends on the server.
+  - Forward `X-Forwarded-For`, or the API sees only the Next server's IP.
+- Consider keeping the access token in memory instead of `localStorage`.
+- The password form → `POST /auth/change-password`; the minimum password length is now 8 (was 7).
 - `src/widgets/CheckoutForm` and `src/features/Order/placeOrder/api/api.ts`: send `items[]` and `shippingMethod` instead of the `dishes` string and `amount`.
-- `src/widgets/UserInfo`: switch to `PATCH /users/me`.
+- `src/widgets/UserInfo`: switch from `PUT /users/:id` to `PATCH /users/me`; an email change sends `currentPassword`.
 - `app/api/contact/route.ts`: switch to `/api/contact`.
 - `next.config.ts`: update `remotePatterns` only if the API host changes.
 - Fix existing bugs along the way:
@@ -156,11 +166,16 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
 2. **Core domain.** Build the entities, the first migration, and the read endpoints (catalog, content, blog, settings, menus) with the section resolver.
    - ✅ Done (2026-10-28): media, catalog (products, categories), settings and menus, blog (published-only, excerpts), pages with 10 section types resolved without N+1, and `Seo.shareImage`. Read endpoints only; every list is paginated and ordered with an id tie-breaker; all covered by unit and Testcontainers e2e tests.
 3. **Auth and users.** Add rotating refresh tokens, guards, and the roles admin, editor and customer.
+   - ✅ Done (2026-11-05): `app_user` (citext email and username) and `refresh_token` tables; register, login (email or username; Strapi hashes accepted and upgraded), refresh with rotation, reuse detection and 7-day idle / 30-day maximum sessions, logout, change-password; `GET`/`PATCH /users/me`. Fail-closed global `JwtAuthGuard` with `@Public()`, `RolesGuard` with `@Roles()`. Rate limits on the auth routes and `PATCH /users/me`; `Cache-Control: no-store` on token and profile responses; logs never contain tokens, hashes, passwords or query parameters. Swagger documents the bearer scheme, every error code and the 429s. Covered by unit tests and Testcontainers e2e tests.
 4. **Orders, contact and mail.** Server-side pricing, order items, throttling, and email notifications.
+   - Also from phase 3: forgot/reset password and email verification (they need the mail module).
+   - `/contact` reuses `AuthThrottlerGuard` with its own `@Throttle()` and `@ApiRateLimited()`.
 5. **Media.** Uploads with sharp variants and static `/uploads` serving.
 6. **Data migration script.** Run it against a copy of production `data.db`.
 7. **AdminJS.** CRUD resources first, then auth, then the section editor (JSON first, then per-type forms), then the dashboard.
+   - From phase 3: a `create-admin` CLI command; blocking a user calls `RefreshTokensService.revokeAllForUser` (their access token still works until it expires, at most 15 min); admin-only API routes get `@Roles()`, and `ApiAuth()` should then document their 403.
 8. **Frontend adaptation** on a branch, run against the local Nest API.
+   - Auth (from phase 3): see the auth items under "Frontend changes".
 9. **Cutover.**
    - **Production Docker image first** (moved here from phase 1). `.dockerignore` already exists: an allow-list of `package*.json`, `src/`, `nest-cli.json` and the tsconfigs.
      - **`Dockerfile`, 3 stages on `node:24-alpine`:** `build` (`npm ci`, `nest build`, so the Swagger plugin runs); `deps` (`npm ci --omit=dev`); `runtime`. Use npm cache mounts and bind-mounted `package*.json`. If `sharp` (phase 5) has trouble on Alpine's musl, switch to `bookworm-slim`.
@@ -171,6 +186,8 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
      - **CI:** add a `docker` job that builds the image, starts it next to a Postgres container, waits for `healthy`, and checks `/health`. Publish to GHCR with commit-SHA tags (for rollbacks) in the deploy workflow.
      - **Done when:** the image is under about 250 MB; it has no dev tools, sources or `.env`; it runs as `uid=1000(node)`; it refuses to start with bad config; it turns healthy; it writes JSON logs; `docker stop` takes about a second; migrations run from the image; stack traces point to `src/*.ts`. Also look at `docker scout cves` and Docker Hardened Images.
    - Deploy Postgres and the API with Docker Compose on the VPS, behind the same `api-simplefood.kozyr.info` domain.
+   - **Before going live (from phase 3):** set `TRUST_PROXY_HOPS` to the number of proxies in front of the API, and make every proxy (nginx and the Next route handlers) forward `X-Forwarded-For`. Until then register and refresh limits count the whole site as one client. Generate a production `JWT_ACCESS_SECRET` (`openssl rand -base64 48`).
+   - Rate-limit counters live in memory, per process: switch the throttler to Redis storage before running more than one API instance. Once real client IPs arrive, consider a looser per-IP login cap on top of the per-account one (password spraying).
    - Freeze Strapi edits, run the migration, smoke-test, and switch over.
    - Keep Strapi and the SQLite file for rollback for about 2 weeks.
    - Set up nightly `pg_dump` backups.
