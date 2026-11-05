@@ -1,4 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
@@ -6,7 +11,11 @@ import {
   type EntityManager,
   type Repository,
 } from 'typeorm';
+import type { UpdateMeDto } from '../dto/update-me.dto';
+import type { UserDto } from '../dto/user.dto';
 import { User } from '../entities/user.entity';
+import { toUserDto } from '../mappers/user.mapper';
+import { PasswordService } from './password.service';
 
 export interface NewUser {
   username: string;
@@ -31,15 +40,90 @@ const TAKEN = new Map([
 ]);
 
 /**
- * User accounts. Knows nothing about tokens or how passwords are hashed: the
- * auth module passes hashes in.
+ * The token's user no longer exists or was blocked since it was issued: the
+ * guard's 401, so the client refreshes, which then fails and logs it out.
  */
+function noLongerActive(): UnauthorizedException {
+  return new UnauthorizedException('Authentication required');
+}
+
+/** Same code as a wrong password at change-password (400: see D13). */
+export function wrongPassword(): BadRequestException {
+  return new BadRequestException({
+    message: 'Current password is incorrect',
+    code: 'WRONG_PASSWORD',
+  });
+}
+
+/** User accounts and the caller's own profile. Knows nothing about tokens. */
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
+    private readonly passwords: PasswordService,
     private readonly dataSource: DataSource,
   ) {}
+
+  /** The caller's account; 401 if it was deleted or blocked meanwhile. */
+  async getProfile(id: string): Promise<UserDto> {
+    const user = await this.users.findOneBy({ id });
+    if (!user || user.blocked) {
+      throw noLongerActive();
+    }
+    return toUserDto(user);
+  }
+
+  /**
+   * Changes the fields sent. A new email needs the current password; a sent
+   * `currentPassword` is checked either way. A taken email or username is a
+   * 409, as at registration.
+   */
+  async updateProfile(
+    id: string,
+    { currentPassword, ...changes }: UpdateMeDto,
+  ): Promise<UserDto> {
+    const user = await this.findActiveWithPassword(id);
+
+    const emailChanges =
+      changes.email !== undefined && changes.email !== user.email;
+    if (emailChanges && currentPassword === undefined) {
+      throw new BadRequestException({
+        message: 'Changing the email requires currentPassword',
+        code: 'CURRENT_PASSWORD_REQUIRED',
+      });
+    }
+    if (
+      currentPassword !== undefined &&
+      !(await this.passwords.verify(currentPassword, user.passwordHash))
+    ) {
+      throw wrongPassword();
+    }
+
+    // `changes` holds only the keys sent. Nothing sent, nothing written: an
+    // empty update would still bump updated_at.
+    if (Object.keys(changes).length) {
+      try {
+        await this.users.update(id, changes);
+      } catch (error) {
+        throw toConflict(error) ?? error;
+      }
+    }
+    return toUserDto(Object.assign(user, changes));
+  }
+
+  /**
+   * With `passwordHash`, for checking the password of a logged-in user;
+   * 401 if the account was deleted or blocked since the token was issued.
+   */
+  async findActiveWithPassword(id: string): Promise<User> {
+    const user = await this.withPassword()
+      .where('user.id = :id', { id })
+      .getOne();
+    if (!user || user.blocked) {
+      throw noLongerActive();
+    }
+    return user;
+  }
 
   /**
    * For login: by email when the identifier has an `@`, by username
@@ -51,10 +135,6 @@ export class UsersService {
     return this.withPassword()
       .where(`user.${column} = :identifier`, { identifier })
       .getOne();
-  }
-
-  findByIdWithPassword(id: string): Promise<User | null> {
-    return this.withPassword().where('user.id = :id', { id }).getOne();
   }
 
   /**

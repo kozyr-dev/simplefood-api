@@ -1,0 +1,57 @@
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Length,
+  Matches,
+  MaxLength,
+} from 'class-validator';
+
+/*
+ * The editable account fields and their rules, in one place: registration
+ * picks some (auth's RegisterDto), PATCH /users/me takes them all as
+ * optional (UpdateMeDto). Never a request body itself.
+ *
+ * The entity's CHECK constraints repeat the username and email rules for
+ * writers that skip the DTOs (the data migration, AdminJS).
+ */
+export class UserFieldsDto {
+  /**
+   * Shown in the UI. Letters of any script, digits and spaces; no `@`
+   * (login tells email and username apart by it).
+   * @example "Ivan Petrenko"
+   */
+  @IsString()
+  @Length(2, 50)
+  @Matches(/^[^@\p{Cc}]+$/u, {
+    message: 'username must not contain "@" or control characters',
+  })
+  username: string;
+
+  /** @example "ivan@example.com" */
+  @IsEmail()
+  @MaxLength(254)
+  email: string;
+
+  /**
+   * `null` removes it.
+   * @example "+380 67 123 45 67"
+   */
+  @IsOptional()
+  @Matches(/^\+?[\d\s()-]{7,20}$/, {
+    message:
+      'phone must be 7-20 digits, spaces, "-", "(", ")", optionally after "+"',
+  })
+  phone?: string | null;
+
+  /**
+   * Delivery address. `null` removes it.
+   * @example "Kyiv, Khreshchatyk St, 1, apt. 5"
+   */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  address?: string | null;
+}

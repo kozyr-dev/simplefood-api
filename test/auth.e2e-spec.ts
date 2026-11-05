@@ -255,9 +255,14 @@ describe('Auth (e2e)', () => {
         password: 'ж'.repeat(37),
       }).expect(400);
 
-      expect(
-        (res.body.error.details as { field: string }[]).map((d) => d.field),
-      ).toEqual(['username', 'email', 'password']);
+      // In any order (RegisterDto's own field comes before the inherited ones).
+      const fields = (res.body.error.details as { field: string }[]).map(
+        (d) => d.field,
+      );
+      expect(fields).toHaveLength(3);
+      expect(fields).toEqual(
+        expect.arrayContaining(['username', 'email', 'password']),
+      );
     });
   });
 

@@ -1,12 +1,15 @@
 import {
-  BadRequestException,
   ForbiddenException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { toUserDto } from '@/users/mappers/user.mapper';
-import { UsersService } from '@/users/services/users.service';
+import {
+  PASSWORD_MAX_BYTES,
+  PasswordService,
+} from '@/users/services/password.service';
+import { UsersService, wrongPassword } from '@/users/services/users.service';
 import type { User } from '@/users/entities/user.entity';
 import type { AuthResultDto } from '../dto/auth-result.dto';
 import type { AuthTokensDto } from '../dto/auth-tokens.dto';
@@ -15,7 +18,6 @@ import type { LoginDto } from '../dto/login.dto';
 import type { RegisterDto } from '../dto/register.dto';
 import type { AuthUser } from '../types/auth.types';
 import { AccessTokensService } from './access-tokens.service';
-import { PASSWORD_MAX_BYTES, PasswordService } from './password.service';
 import {
   RefreshTokensService,
   type IssuedRefreshToken,
@@ -116,17 +118,11 @@ export class AuthService {
     caller: AuthUser,
     { currentPassword, newPassword }: ChangePasswordDto,
   ): Promise<AuthResultDto> {
-    const user = await this.users.findByIdWithPassword(caller.id);
-    // Deleted or blocked since the access token was issued.
-    if (!user?.passwordHash || user.blocked) {
-      throw new UnauthorizedException('Authentication required');
-    }
+    // 401 if deleted or blocked since the access token was issued.
+    const user = await this.users.findActiveWithPassword(caller.id);
     // 400, not 401: the frontend answers any 401 with a token refresh (D13).
     if (!(await this.passwords.verify(currentPassword, user.passwordHash))) {
-      throw new BadRequestException({
-        message: 'Current password is incorrect',
-        code: 'WRONG_PASSWORD',
-      });
+      throw wrongPassword();
     }
 
     const passwordHash = await this.passwords.hash(newPassword);

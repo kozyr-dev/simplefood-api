@@ -14,12 +14,11 @@ import {
   jwtModuleOptions,
 } from './services/access-tokens.service';
 import { AuthService } from './services/auth.service';
-import { PasswordService } from './services/password.service';
 import { RefreshTokensService } from './services/refresh-tokens.service';
 
 /**
- * Passwords, tokens and the global guards: every route needs a login unless
- * it's `@Public()`. Serves /auth (register, login, refresh, logout,
+ * Sessions, tokens and the global guards: every route needs a login unless
+ * it's `@Public()`. Accounts and password hashing come from UsersModule. Serves /auth (register, login, refresh, logout,
  * change-password).
  */
 @Module({
@@ -36,7 +35,6 @@ import { RefreshTokensService } from './services/refresh-tokens.service';
   controllers: [AuthController],
   providers: [
     AuthService,
-    PasswordService,
     AccessTokensService,
     RefreshTokensService,
     // Global guards run in the order they're registered: authenticate first,

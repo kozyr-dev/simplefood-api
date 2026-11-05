@@ -8,7 +8,7 @@ import {
 import {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN_LENGTH,
-} from '../services/password.service';
+} from '@/users/services/password.service';
 import { PASSWORD_BYTES_MESSAGE } from './register.dto';
 
 export class ChangePasswordDto {
