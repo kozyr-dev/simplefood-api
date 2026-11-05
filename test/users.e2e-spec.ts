@@ -8,6 +8,7 @@ import { bearer, loginAs } from './utils/auth';
 import { resetDatabase } from './utils/database';
 import { createUser, TEST_PASSWORD } from './utils/factories';
 import { createTestApp, UUID } from './utils/test-app';
+import { resetRateLimits } from './utils/throttler';
 
 describe('Users (e2e)', () => {
   let app: INestApplication<App>;
@@ -24,6 +25,7 @@ describe('Users (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(dataSource);
+    resetRateLimits(app);
     user = await createUser(dataSource, {
       username: 'Ivan Petrenko',
       email: 'ivan@example.com',

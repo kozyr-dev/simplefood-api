@@ -19,6 +19,7 @@ import { bearer, loginAs } from './utils/auth';
 import { resetDatabase } from './utils/database';
 import { createUser, daysFromNow, TEST_PASSWORD } from './utils/factories';
 import { createTestApp, UUID } from './utils/test-app';
+import { resetRateLimits } from './utils/throttler';
 
 /** Needs a login; stands in for any protected route. */
 @Controller('auth-test')
@@ -53,6 +54,7 @@ describe('Auth (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(dataSource);
+    resetRateLimits(app);
   });
 
   afterEach(() => {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { minutes, ThrottlerModule } from '@nestjs/throttler';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoggerModule } from 'nestjs-pino';
 import { HealthModule } from '@/health/health.module';
@@ -22,6 +23,12 @@ import loggerConfig from '@/config/logger.config';
     }),
     TypeOrmModule.forRootAsync(databaseConfig.asProvider()),
     LoggerModule.forRootAsync(loggerConfig.asProvider()),
+    // Limits only where AuthThrottlerGuard is applied (D12), not globally;
+    // routes without their own @Throttle() get this one.
+    ThrottlerModule.forRoot({
+      throttlers: [{ ttl: minutes(1), limit: 30 }],
+      errorMessage: 'Too many requests, try again later',
+    }),
     HealthModule,
     MediaModule,
     CatalogModule,

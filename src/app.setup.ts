@@ -40,7 +40,8 @@ export function configureApp(app: NestExpressApplication): void {
       .getOrThrow<string>('CORS_ORIGINS')
       .split(',')
       .map((origin) => origin.trim()),
-    exposedHeaders: [REQUEST_ID_HEADER],
+    // Retry-After: so a browser client can read when a 429 ends.
+    exposedHeaders: [REQUEST_ID_HEADER, 'Retry-After'],
   });
 
   // Pipes run in this order: trim first, so validators see trimmed values.

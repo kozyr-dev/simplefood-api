@@ -1,5 +1,13 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { hours, minutes, Throttle } from '@nestjs/throttler';
 import { NoStore } from '@/common/http/no-store.decorator';
 import type { DataResponse } from '@/common/http/responses';
 import { CurrentUser } from '../decorators/current-user.decorator';
@@ -10,17 +18,21 @@ import { ChangePasswordDto } from '../dto/change-password.dto';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { RegisterDto } from '../dto/register.dto';
+import { AuthThrottlerGuard } from '../guards/auth-throttler.guard';
 import { AuthService } from '../services/auth.service';
 import type { AuthUser } from '../types/auth.types';
 
+// Rate limited: logout gets the module's default (30 per minute).
 @ApiTags('auth')
 @Controller('auth')
+@UseGuards(AuthThrottlerGuard)
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   /** Creates a customer account and logs it in. */
   @Public()
   @Post('register')
+  @Throttle({ default: { limit: 10, ttl: hours(1) } })
   @NoStore()
   @HttpCode(HttpStatus.CREATED)
   async register(
@@ -32,6 +44,10 @@ export class AuthController {
   /** Logs in with email or username; starts a new session. */
   @Public()
   @Post('login')
+  // Per IP and identifier; the 6th try in a minute blocks for 5 minutes.
+  @Throttle({
+    default: { limit: 5, ttl: minutes(1), blockDuration: minutes(5) },
+  })
   @NoStore()
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto): Promise<DataResponse<AuthResultDto>> {
@@ -44,6 +60,7 @@ export class AuthController {
    */
   @Public()
   @Post('refresh')
+  @Throttle({ default: { limit: 30, ttl: minutes(1) } })
   @NoStore()
   @HttpCode(HttpStatus.OK)
   async refresh(
@@ -65,6 +82,8 @@ export class AuthController {
 
   /** Changes the password and ends every other session. */
   @Post('change-password')
+  // Per account (see AuthThrottlerGuard): it checks the current password.
+  @Throttle({ default: { limit: 5, ttl: minutes(1) } })
   @NoStore()
   @HttpCode(HttpStatus.OK)
   async changePassword(

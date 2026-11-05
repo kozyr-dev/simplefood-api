@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
+import { minutes, Throttle } from '@nestjs/throttler';
 import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import { AuthThrottlerGuard } from '@/auth/guards/auth-throttler.guard';
 import type { AuthUser } from '@/auth/types/auth.types';
 import { ApiDataResponse } from '@/common/http/api-responses.decorator';
 import { NoStore } from '@/common/http/no-store.decorator';
@@ -29,9 +31,12 @@ export class UsersController {
 
   /**
    * Changes the fields sent; `null` clears `phone` or `address`. Changing
-   * the email needs `currentPassword`.
+   * the email needs `currentPassword`. Rate limited per account, since it
+   * can check the password.
    */
   @Patch('me')
+  @UseGuards(AuthThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: minutes(1) } })
   @NoStore()
   @ApiDataResponse(UserDto)
   async updateMe(
