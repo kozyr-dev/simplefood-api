@@ -10,6 +10,7 @@ import { ContentModule } from '@/content/content.module';
 import { BlogModule } from '@/blog/blog.module';
 import { UsersModule } from '@/users/users.module';
 import { AuthModule } from '@/auth/auth.module';
+import { OrdersModule } from '@/orders/orders.module';
 import databaseConfig from '@/config/database.config';
 import validationSchema from '@/config/env.validation';
 import loggerConfig from '@/config/logger.config';
@@ -36,6 +37,7 @@ import loggerConfig from '@/config/logger.config';
     BlogModule,
     UsersModule,
     AuthModule,
+    OrdersModule,
   ],
 })
 export class AppModule {}

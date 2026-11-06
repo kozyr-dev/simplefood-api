@@ -21,3 +21,6 @@ export interface MailMessage {
   text: string;
   html: string;
 }
+
+/** What a template builds; the sender adds `to` (and `replyTo`). */
+export type MailContent = Pick<MailMessage, 'subject' | 'text' | 'html'>;

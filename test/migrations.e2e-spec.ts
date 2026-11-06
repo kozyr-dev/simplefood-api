@@ -62,6 +62,37 @@ describe('Migrations (e2e)', () => {
     expect(upQueries.map((query) => query.query)).toEqual([]);
   });
 
+  it('matches every identity column to its entity: ALWAYS or BY DEFAULT', async () => {
+    // The comparison above skips this (TypeORM 1.1 compares only whether a
+    // column is generated), so a changed entity would get no migration.
+    const expected = dataSource.entityMetadatas
+      .flatMap(({ tableName, columns }) =>
+        columns
+          // Typed without 'identity', but that's the runtime value.
+          .filter(
+            (column) => (column.generationStrategy as string) === 'identity',
+          )
+          .map((column) => ({
+            table: tableName,
+            column: column.databaseName,
+            generation: column.generatedIdentity ?? 'BY DEFAULT',
+          })),
+      )
+      .sort((a, b) =>
+        `${a.table}.${a.column}`.localeCompare(`${b.table}.${b.column}`),
+      );
+    const actual = (await dataSource.query(`
+      SELECT table_name AS "table", column_name AS "column",
+             identity_generation AS "generation"
+      FROM information_schema.columns
+      WHERE table_schema = 'public' AND is_identity = 'YES'
+      ORDER BY table_name, column_name
+    `)) as unknown[];
+
+    expect(expected.length).toBeGreaterThan(0); // customer_order.number
+    expect(actual).toEqual(expected);
+  });
+
   it('reverts every migration with its down()', async () => {
     for (let i = dataSource.migrations.length; i > 0; i--) {
       await dataSource.undoLastMigration({ transaction: 'each' });

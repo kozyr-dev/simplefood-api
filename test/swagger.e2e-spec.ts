@@ -10,6 +10,7 @@ import {
 import type { OpenAPIObject, OperationObject } from '@nestjs/swagger';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { IsOptionalAuth } from '@/auth/decorators/optional-auth.decorator';
 import { IsPublic } from '@/auth/decorators/public.decorator';
 import { AuthThrottlerGuard } from '@/auth/guards/auth-throttler.guard';
 import { readApiVersion } from '@/config/swagger.config';
@@ -39,6 +40,8 @@ interface Route {
   /** As operationIdFactory names it: `Auth_login`. */
   operationId: string;
   isPublic: boolean;
+  /** `@OptionalAuth()`: a guest or a valid token. */
+  optionalAuth: boolean;
   rateLimited: boolean;
 }
 
@@ -71,6 +74,11 @@ function routesOf(app: INestApplication): Route[] {
             isPublic:
               reflector.getAllAndOverride(IsPublic, [handler, controller]) ===
               true,
+            optionalAuth:
+              reflector.getAllAndOverride(IsOptionalAuth, [
+                handler,
+                controller,
+              ]) === true,
             rateLimited: [
               ...guardsOf(controller),
               ...guardsOf(handler),
@@ -174,6 +182,7 @@ describe('Swagger (e2e)', () => {
           'blog',
           'auth',
           'users',
+          'orders',
         ]);
         for (const tag of document.tags ?? []) {
           expect(tag.description).toEqual(expect.any(String));
@@ -232,6 +241,10 @@ describe('Swagger (e2e)', () => {
         return operation as OperationObject;
       };
 
+      /** Neither public nor optional: a token is required. */
+      const needsLogin = (route: Route) =>
+        !route.isPublic && !route.optionalAuth;
+
       it('finds the routes to check, public and protected', () => {
         const ids = routes.map((route) => route.operationId);
 
@@ -244,16 +257,37 @@ describe('Swagger (e2e)', () => {
             'Users_getMe',
           ]),
         );
-        expect(routes.filter((route) => !route.isPublic)).toHaveLength(3);
+        expect(routes.filter(needsLogin)).toHaveLength(4);
+        expect(
+          routes
+            .filter((route) => route.optionalAuth)
+            .map((r) => r.operationId),
+        ).toEqual(['Orders_create']);
       });
 
       it('shows the bearer scheme and its 401 on every route that needs a login', () => {
-        for (const { operationId } of routes.filter((r) => !r.isPublic)) {
+        for (const { operationId } of routes.filter(needsLogin)) {
           const operation = operationOf(operationId);
 
           expect({ operationId, security: operation.security }).toEqual({
             operationId,
             security: [{ bearer: [] }],
+          });
+          expect(operation.responses['401']).toMatchObject({
+            ...ERROR_BODY,
+            headers: { 'WWW-Authenticate': expect.any(Object) },
+          });
+        }
+      });
+
+      it('shows the login as optional, with its 401, on @OptionalAuth() routes', () => {
+        for (const { operationId } of routes.filter((r) => r.optionalAuth)) {
+          const operation = operationOf(operationId);
+
+          // OpenAPI: `{}` = no credentials needed; or a bearer token.
+          expect({ operationId, security: operation.security }).toEqual({
+            operationId,
+            security: [{}, { bearer: [] }],
           });
           expect(operation.responses['401']).toMatchObject({
             ...ERROR_BODY,
@@ -279,6 +313,7 @@ describe('Swagger (e2e)', () => {
           'Auth_logout',
           'Auth_refresh',
           'Auth_register',
+          'Orders_create',
           'Users_updateMe',
         ]);
 
@@ -299,6 +334,8 @@ describe('Swagger (e2e)', () => {
         ['Auth_changePassword', ['200', '400', '401']],
         ['Users_getMe', ['200', '401']],
         ['Users_updateMe', ['200', '400', '401', '409']],
+        ['Orders_create', ['201', '400', '401', '409']],
+        ['Orders_findMine', ['200', '401']],
       ])('%s documents its own responses: %j', (operationId, statuses) => {
         const { responses } = operationOf(operationId);
 
@@ -320,6 +357,7 @@ describe('Swagger (e2e)', () => {
         ['Auth_changePassword', '200', 'AuthResultDto'],
         ['Users_getMe', '200', 'UserDto'],
         ['Users_updateMe', '200', 'UserDto'],
+        ['Orders_create', '201', 'OrderDto'],
       ])('%s answers %s with { data: %s }', (operationId, status, model) => {
         expect(operationOf(operationId).responses[status]).toMatchObject({
           content: {

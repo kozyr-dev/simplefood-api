@@ -14,6 +14,8 @@ import { Page } from '@/content/entities/page.entity';
 import { validateSectionData } from '@/content/entities/section-data';
 import { SiteSettings } from '@/content/entities/site-settings.entity';
 import { Media } from '@/media/entities/media.entity';
+import { OrderItem } from '@/orders/entities/order-item.entity';
+import { Order, ShippingMethod } from '@/orders/entities/order.entity';
 import { User } from '@/users/entities/user.entity';
 
 /*
@@ -245,6 +247,56 @@ export async function createUser(
       phone: null,
       address: null,
       ...overrides,
+    }),
+  );
+}
+
+/** One line for createOrder(); `position` and `lineTotal` are computed. */
+export type OrderItemInput = Partial<
+  Omit<OrderItem, 'order' | 'position' | 'lineTotal'>
+>;
+
+/**
+ * A guest delivery order with one item, unless told otherwise. Items take
+ * the product's title and price when one is given; positions, line totals
+ * and the subtotal are computed as the service does. E.g.
+ * `createOrder(ds, { user }, [{ product, quantity: 2 }, { unitPrice: 0 }])`.
+ */
+export function createOrder(
+  dataSource: DataSource,
+  overrides: Partial<Omit<Order, 'items'>> = {},
+  items: OrderItemInput[] = [{}],
+): Promise<Order> {
+  const n = next();
+  const itemRepository = dataSource.getRepository(OrderItem);
+  const lines = items.map((item, position) => {
+    const unitPrice = item.unitPrice ?? item.product?.price ?? 10000;
+    const quantity = item.quantity ?? 1;
+    return itemRepository.create({
+      title: item.product?.title ?? `Dish ${n}.${position + 1}`,
+      product: null,
+      ...item,
+      unitPrice,
+      quantity,
+      position,
+      lineTotal: unitPrice * quantity,
+    });
+  });
+
+  const repository = dataSource.getRepository(Order);
+  return repository.save(
+    repository.create({
+      user: null,
+      name: `Customer ${n}`,
+      email: `customer${n}@example.com`,
+      phone: '+380 67 123 45 67',
+      address: `Kyiv, Khreshchatyk St, ${n}`,
+      shippingMethod: ShippingMethod.Delivery,
+      comments: null,
+      legacyDishesText: null,
+      subtotal: lines.reduce((sum, line) => sum + line.lineTotal, 0),
+      ...overrides,
+      items: lines,
     }),
   );
 }

@@ -131,6 +131,8 @@ describe('Rate limits (e2e)', () => {
       { refreshToken: 'unknown' },
     ],
     ['POST /auth/logout', 30, 60, '/api/auth/logout', { refreshToken: 'x' }],
+    // A guest: no token, so counted by IP (the browser calls the API directly).
+    ['POST /orders (guest)', 10, 3600, '/api/orders', {}],
   ])(
     '%s: %i per window per IP, then 429 with Retry-After (≤ %is)',
     async (_, limit, windowSeconds, path, body) => {
@@ -162,8 +164,13 @@ describe('Rate limits (e2e)', () => {
           .set(bearer(token))
           .send({ currentPassword: 'wrong password' }),
     ],
+    [
+      'POST /orders',
+      10,
+      (token: string) => http().post('/api/orders').set(bearer(token)).send({}),
+    ],
   ])(
-    '%s: %i per minute per account; other accounts on the same IP are unaffected',
+    '%s: %i per window per account; other accounts on the same IP are unaffected',
     async (_, limit, send) => {
       const { accessToken } = await loginAs(app, user);
       const other = (await loginAs(app, await createUser(dataSource)))

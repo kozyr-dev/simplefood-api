@@ -139,6 +139,8 @@ src/
                     @Public(), @OptionalAuth(), @Roles(), @CurrentUser(), AuthThrottlerGuard
                     with @ThrottleBy()
   users/            accounts (User entity, PasswordService): GET and PATCH /api/users/me
+  orders/           POST /api/orders (guests too, priced on the server), GET /api/orders/me;
+                    the order emails (templates/)
   mail/             MailService (sends in the background, after the commit), the SMTP
                     transport, shared email template helpers (templates/)
   health/           GET /health (Terminus)

@@ -8,6 +8,11 @@ import {
   MaxLength,
 } from 'class-validator';
 
+/** A phone number as people type it; shared with checkout (orders). */
+export const PHONE_PATTERN = /^\+?[\d\s()-]{7,20}$/;
+export const PHONE_MESSAGE =
+  '$property must be 7-20 digits, spaces, "-", "(", ")", optionally after "+"';
+
 /*
  * The editable account fields and their rules, in one place: registration
  * picks some (auth's RegisterDto), PATCH /users/me takes them all as
@@ -39,10 +44,7 @@ export class UserFieldsDto {
    * @example "+380 67 123 45 67"
    */
   @IsOptional()
-  @Matches(/^\+?[\d\s()-]{7,20}$/, {
-    message:
-      'phone must be 7-20 digits, spaces, "-", "(", ")", optionally after "+"',
-  })
+  @Matches(PHONE_PATTERN, { message: PHONE_MESSAGE })
   phone?: string | null;
 
   /**

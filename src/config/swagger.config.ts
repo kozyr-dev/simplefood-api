@@ -59,6 +59,11 @@ export function buildSwaggerDocumentConfig() {
           'the password. Each refresh token works once: store the new one.',
       )
       .addTag('users', "The logged-in user's own account.")
+      .addTag(
+        'orders',
+        'Placing orders (guests too; prices come from the server) and the ' +
+          "logged-in customer's order history.",
+      )
       // Routes that need a login say so with ApiAuth() (common/http).
       .addBearerAuth({
         type: 'http',

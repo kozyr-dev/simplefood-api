@@ -4,6 +4,7 @@ import {
   ApiExtraModels,
   ApiOkResponse,
   ApiResponse,
+  ApiSecurity,
   ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
   getSchemaPath,
@@ -77,6 +78,31 @@ export function ApiAuth() {
         'WWW-Authenticate': {
           description:
             '`Bearer`, or `Bearer error="invalid_token"` when a token was sent.',
+          schema: { type: 'string' },
+        },
+      },
+    }),
+  );
+}
+
+/**
+ * An `@OptionalAuth()` route: callable without a token (`{}` in the security
+ * list) or with one, and the 401 for a token that is sent but invalid.
+ */
+export function ApiOptionalAuth() {
+  return applyDecorators(
+    ApiSecurity({}),
+    ApiBearerAuth(),
+    ApiUnauthorizedResponse({
+      type: ErrorResponseDto,
+      description:
+        'A token was sent but is invalid or expired: refresh and retry ' +
+        '(sending none is fine). Also when the account was blocked or ' +
+        'deleted since the token was issued.',
+      headers: {
+        'WWW-Authenticate': {
+          description:
+            '`Bearer error="invalid_token"`, or `Bearer` for a malformed header.',
           schema: { type: 'string' },
         },
       },

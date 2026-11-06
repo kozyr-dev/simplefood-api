@@ -66,11 +66,19 @@ export class UsersService {
 
   /** The caller's account; 401 if it was deleted or blocked meanwhile. */
   async getProfile(id: string): Promise<UserDto> {
+    return toUserDto(await this.findActive(id));
+  }
+
+  /**
+   * The account behind an access token; 401 if it was deleted or blocked
+   * since the token was issued (access tokens can't be revoked).
+   */
+  async findActive(id: string): Promise<User> {
     const user = await this.users.findOneBy({ id });
     if (!user || user.blocked) {
       throw noLongerActive();
     }
-    return toUserDto(user);
+    return user;
   }
 
   /**
