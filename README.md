@@ -45,21 +45,28 @@ npm run start:dev            # http://localhost:1339
 
 The API reads these variables. They are validated at startup in [src/config/env.validation.ts](src/config/env.validation.ts), and the app refuses to start if one is missing or invalid. Real environment variables take precedence over `.env`.
 
-| Variable                                       | Required | Default        | Purpose                                                                       |
-| ---------------------------------------------- | -------- | -------------- | ----------------------------------------------------------------------------- |
-| `NODE_ENV`                                     | **yes**  |                | `development`, `production` or `test`                                         |
-| `PORT`                                         | no       | `1339`         | HTTP port (`1338` is the legacy Strapi API)                                   |
-| `LOG_LEVEL`                                    | no       | per `NODE_ENV` | pino level; `test` = `silent`, `development` = `debug`, `production` = `info` |
-| `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | **yes**  |                | PostgreSQL connection                                                         |
-| `DB_PORT`                                      | no       | `5432`         | PostgreSQL port (`5433` locally, see `.env.example`)                          |
-| `CORS_ORIGINS`                                 | **yes**  |                | Comma-separated list of allowed browser origins                               |
-| `SWAGGER_ENABLED`                              | no       | `false`        | Serve the API docs. Keep it off in production.                                |
-| `JWT_ACCESS_SECRET`                            | **yes**  |                | Signs access tokens; 32+ characters (`openssl rand -base64 48`)               |
-| `JWT_ACCESS_TTL`                               | no       | `900`          | Access token lifetime, in seconds                                             |
-| `REFRESH_TOKEN_TTL_DAYS`                       | no       | `7`            | A refresh token expires after this many days without use                      |
-| `REFRESH_TOKEN_MAX_TTL_DAYS`                   | no       | `30`           | A session ends this many days after login (at least the idle lifetime)        |
-| `BCRYPT_ROUNDS`                                | no       | `12`           | Password hashing cost; at least `10` in production (`4` in the e2e tests)     |
-| `TRUST_PROXY_HOPS`                             | no       | `0`            | Reverse proxies in front of the API; `0` ignores `X-Forwarded-For`            |
+| Variable                                       | Required | Default        | Purpose                                                                          |
+| ---------------------------------------------- | -------- | -------------- | -------------------------------------------------------------------------------- |
+| `NODE_ENV`                                     | **yes**  |                | `development`, `production` or `test`                                            |
+| `PORT`                                         | no       | `1339`         | HTTP port (`1338` is the legacy Strapi API)                                      |
+| `LOG_LEVEL`                                    | no       | per `NODE_ENV` | pino level; `test` = `silent`, `development` = `debug`, `production` = `info`    |
+| `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | **yes**  |                | PostgreSQL connection                                                            |
+| `DB_PORT`                                      | no       | `5432`         | PostgreSQL port (`5433` locally, see `.env.example`)                             |
+| `CORS_ORIGINS`                                 | **yes**  |                | Comma-separated list of allowed browser origins                                  |
+| `SWAGGER_ENABLED`                              | no       | `false`        | Serve the API docs. Keep it off in production.                                   |
+| `JWT_ACCESS_SECRET`                            | **yes**  |                | Signs access tokens; 32+ characters (`openssl rand -base64 48`)                  |
+| `JWT_ACCESS_TTL`                               | no       | `900`          | Access token lifetime, in seconds                                                |
+| `REFRESH_TOKEN_TTL_DAYS`                       | no       | `7`            | A refresh token expires after this many days without use                         |
+| `REFRESH_TOKEN_MAX_TTL_DAYS`                   | no       | `30`           | A session ends this many days after login (at least the idle lifetime)           |
+| `BCRYPT_ROUNDS`                                | no       | `12`           | Password hashing cost; at least `10` in production (`4` in the e2e tests)        |
+| `TRUST_PROXY_HOPS`                             | no       | `0`            | Reverse proxies in front of the API; `0` ignores `X-Forwarded-For`               |
+| `SMTP_HOST`                                    | **yes**  |                | SMTP server; `localhost` reaches Mailpit locally                                 |
+| `SMTP_PORT`                                    | no       | `587`          | SMTP port (`1025` for Mailpit)                                                   |
+| `SMTP_SECURE`                                  | no       | `false`        | `true`: TLS from the start (port 465). `false`: STARTTLS, required in production |
+| `SMTP_USER`, `SMTP_PASSWORD`                   | no       |                | SMTP login: both or neither                                                      |
+| `MAIL_FROM`                                    | **yes**  |                | Sender address, shown as "SimpleFood"                                            |
+| `MAIL_NOTIFY_TO`                               | **yes**  |                | The shop's inbox: new orders and contact messages                                |
+| `FRONTEND_URL`                                 | **yes**  |                | The site's address, for links in emails; `https` in production                   |
 
 `POSTGRES_*` and `MAILPIT_*` in `.env` only configure Docker Compose; the API doesn't read them.
 
@@ -96,6 +103,7 @@ The migration scripts (except `create`) build first and use the TypeORM CLI entr
   - **Files that write data** call `resetDatabase(dataSource)` in `beforeEach` ([test/utils/database.ts](test/utils/database.ts)), and create rows with the factories in [test/utils/factories.ts](test/utils/factories.ts) (`createMedia(dataSource, { width: null })`). Add a factory for each new entity.
   - Get a `DataSource` with `app.get(DataSource)` in tests that boot the app, or `openTestDataSource()` in tests that only use repositories.
   - **Logged-in calls:** `createUser(dataSource, { role: UserRole.Admin })` (hashed at cost 4), then `const { accessToken } = await loginAs(app, user)` and `.set(bearer(accessToken))` ([test/utils/auth.ts](test/utils/auth.ts)). A test-only controller needs `@Public()` unless it is meant to require a login.
+  - **Email:** `createTestApp()` replaces SMTP with a `FakeMailTransport`, so no test sends real mail. Mail goes out after the response: read it with `(await mailbox(app)).sent` ([test/utils/mail.ts](test/utils/mail.ts)), which waits for it, and `clear()` it in `beforeEach` when the app is shared.
   - **Rate limits** stay at their production values in tests. Files that call the limited routes call `resetRateLimits(app)` in `beforeEach` ([test/utils/throttler.ts](test/utils/throttler.ts)).
   - `test/migrations.e2e-spec.ts` checks the migrations themselves: they apply cleanly, the schema matches the entities, and every `down()` reverts.
 - The `@nestjs/swagger` CLI plugin doesn't run under Jest (`isolatedModules`), so DTO properties only appear in the docs of a real build.
@@ -120,7 +128,7 @@ src/
   app.setup.ts      HTTP pipeline shared with the e2e tests: security headers, /api prefix,
                     logger, CORS, pipes, exception filter, Swagger
   app.module.ts     root module: config, database, logger, feature modules
-  config/           env schema and `registerAs` namespaces (database, logger, auth), Swagger setup
+  config/           env schema and `registerAs` namespaces (database, logger, auth, mail), Swagger setup
   common/           cross-cutting code: exception filter + error DTOs, request IDs, pipes,
                     validation error formatting, response envelope + pagination, Swagger
                     response decorators, @NoStore() (http/)
@@ -128,8 +136,11 @@ src/
                     entities/ (base entity, Seo), migrations/
   auth/             sessions and access control: POST /api/auth/register, /login, /refresh,
                     /logout, /change-password; the global JwtAuthGuard and RolesGuard,
-                    @Public(), @Roles(), @CurrentUser(), AuthThrottlerGuard
+                    @Public(), @OptionalAuth(), @Roles(), @CurrentUser(), AuthThrottlerGuard
+                    with @ThrottleBy()
   users/            accounts (User entity, PasswordService): GET and PATCH /api/users/me
+  mail/             MailService (sends in the background, after the commit), the SMTP
+                    transport, shared email template helpers (templates/)
   health/           GET /health (Terminus)
   media/            Media entity (uploaded files) and its response DTO
   catalog/          products and product categories: GET /api/products, /api/products/:slug,
@@ -141,7 +152,7 @@ src/
 test/
   setup/            Testcontainers global setup/teardown
   utils/            createTestApp(), resetDatabase(), factories, loginAs() + bearer(),
-                    resetRateLimits()
+                    resetRateLimits(), FakeMailTransport + mailbox()
   *.e2e-spec.ts     e2e suites
 docs/               migration plan
 ```
@@ -162,6 +173,7 @@ docs/               migration plan
     guards/        *.guard.ts
     decorators/    *.decorator.ts
     types/         <feature>.types.ts (interfaces and types shared within the module)
+    templates/     emails this module sends (helpers in mail/templates/)
   ```
 
   Keep the file suffixes (`.controller.ts`, `.dto.ts`, `.entity.ts`): the Swagger CLI plugin, the TypeORM entity pattern and the coverage exclusions find files by them.
@@ -180,7 +192,8 @@ docs/               migration plan
   - `@Roles(UserRole.Admin)` limits a route to roles (403 otherwise); `@CurrentUser()` gives the caller (`{ id, role }`, read from the token without a query).
   - **Ownership comes from the token:** a route for the caller's own data uses `@CurrentUser()`, never an id from the URL (`/users/me`, not `/users/:id`).
   - Document a protected route with `@ApiAuth()`, so Swagger shows the lock and the 401.
-  - **Rate limits:** a route that checks a password or creates accounts gets `@UseGuards(AuthThrottlerGuard)` with its own `@Throttle()`, plus `@ApiRateLimited()` for the docs. There is no global limit: every server-rendered page reaches the API from the Next server's single IP.
+  - `@OptionalAuth()` serves guests and logged-in callers alike: no header means a guest, but a token that is sent must be valid (401 otherwise, so the client refreshes instead of carrying on as a guest). Read the caller with `@CurrentUser({ optional: true })`.
+  - **Rate limits:** a route that checks a password, creates accounts or sends mail gets `@UseGuards(AuthThrottlerGuard)` with its own `@Throttle()`, plus `@ApiRateLimited()` for the docs. A logged-in caller is counted per account, a guest per IP; `@ThrottleBy('email')` counts a guest per IP and that body field instead (login: `identifier`). There is no global limit: every server-rendered page reaches the API from the Next server's single IP.
   - Responses that carry tokens or personal data get `@NoStore()` (`Cache-Control: no-store`).
 - **Entities and responses:** controllers never return entities; they map them to response DTOs (e.g. `toMediaDto()`). Primary keys are UUIDv7 from Postgres (`AppBaseEntity`).
 - **Errors** always have one shape (documented as `ErrorResponseDto` in Swagger):

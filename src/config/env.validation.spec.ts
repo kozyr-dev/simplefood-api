@@ -9,6 +9,10 @@ const minimalEnv = {
   DB_NAME: 'simplefood',
   CORS_ORIGINS: 'https://simplefood.kozyr.info',
   JWT_ACCESS_SECRET: 'kO3n9vB1xQ7mZ2pL5sT8wY4cF6hJ0dGa',
+  SMTP_HOST: 'smtp.example.com',
+  MAIL_FROM: 'noreply@simplefood.kozyr.info',
+  MAIL_NOTIFY_TO: 'shop@simplefood.kozyr.info',
+  FRONTEND_URL: 'https://simplefood.kozyr.info',
 };
 
 // Same options @nestjs/config uses by default.
@@ -32,6 +36,8 @@ describe('env validation schema', () => {
       REFRESH_TOKEN_MAX_TTL_DAYS: 30,
       BCRYPT_ROUNDS: 12,
       TRUST_PROXY_HOPS: 0,
+      SMTP_PORT: 587,
+      SMTP_SECURE: false,
     });
     expect(value.LOG_LEVEL).toBeUndefined(); // logger.config picks per NODE_ENV
   });
@@ -44,6 +50,10 @@ describe('env validation schema', () => {
     'DB_NAME',
     'CORS_ORIGINS',
     'JWT_ACCESS_SECRET',
+    'SMTP_HOST',
+    'MAIL_FROM',
+    'MAIL_NOTIFY_TO',
+    'FRONTEND_URL',
   ])('requires %s', (key) => {
     const env: Record<string, unknown> = { ...minimalEnv };
     delete env[key];
@@ -61,6 +71,10 @@ describe('env validation schema', () => {
         'DB_NAME',
         'CORS_ORIGINS',
         'JWT_ACCESS_SECRET',
+        'SMTP_HOST',
+        'MAIL_FROM',
+        'MAIL_NOTIFY_TO',
+        'FRONTEND_URL',
       ]),
     );
   });
@@ -80,6 +94,13 @@ describe('env validation schema', () => {
     ['REFRESH_TOKEN_TTL_DAYS', '0'],
     ['BCRYPT_ROUNDS', '16'],
     ['TRUST_PROXY_HOPS', '-1'],
+    ['SMTP_HOST', 'smtp server'],
+    ['SMTP_PORT', '0'],
+    ['SMTP_SECURE', 'maybe'],
+    ['MAIL_FROM', 'SimpleFood <noreply@simplefood.kozyr.info>'],
+    ['MAIL_NOTIFY_TO', 'shop'],
+    ['FRONTEND_URL', 'simplefood.kozyr.info'],
+    ['FRONTEND_URL', 'ftp://simplefood.kozyr.info'],
   ])('rejects %s=%s', (key, value) => {
     expect(errorKeys({ ...minimalEnv, [key]: value })).toEqual([key]);
   });
@@ -162,6 +183,38 @@ describe('env validation schema', () => {
           JWT_ACCESS_SECRET: placeholder,
         }),
       ).toEqual([]);
+    });
+  });
+
+  describe('mail', () => {
+    it('accepts SMTP credentials as a pair', () => {
+      expect(
+        validate({ ...minimalEnv, SMTP_USER: 'api', SMTP_PASSWORD: 'secret' })
+          .error,
+      ).toBeUndefined();
+    });
+
+    it.each([
+      ['a user without a password', { SMTP_USER: 'api' }],
+      ['a password without a user', { SMTP_PASSWORD: 'secret' }],
+    ])('refuses %s, without printing it', (_, credentials) => {
+      const { error } = validate({ ...minimalEnv, ...credentials });
+
+      expect(error?.details.map((detail) => detail.type)).toEqual([
+        'object.and',
+      ]);
+      expect(error?.message).not.toContain('secret');
+    });
+
+    it.each([
+      ['production', 'http://simplefood.kozyr.info', false],
+      ['production', 'https://simplefood.kozyr.info', true],
+      ['development', 'http://localhost:3000', true],
+      ['test', 'http://localhost:3000', true],
+    ])('NODE_ENV=%s, FRONTEND_URL=%s: accepted = %s', (env, url, ok) => {
+      expect(
+        errorKeys({ ...minimalEnv, NODE_ENV: env, FRONTEND_URL: url }),
+      ).toEqual(ok ? [] : ['FRONTEND_URL']);
     });
   });
 

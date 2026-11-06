@@ -5,6 +5,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
 import { CurrentUser } from '@/auth/decorators/current-user.decorator';
+import { OptionalAuth } from '@/auth/decorators/optional-auth.decorator';
 import { Public } from '@/auth/decorators/public.decorator';
 import { Roles } from '@/auth/decorators/roles.decorator';
 import { AccessTokensService } from '@/auth/services/access-tokens.service';
@@ -42,6 +43,12 @@ class GuardTestController {
     return { ok: true };
   }
 
+  @OptionalAuth()
+  @Get('optional')
+  optional(@CurrentUser({ optional: true }) user?: AuthUser) {
+    return { user: user ?? null };
+  }
+
   // A bug in a route: @CurrentUser() where nobody has to log in.
   @Public()
   @Get('open-with-current-user')
@@ -73,6 +80,20 @@ describe('Auth guards (e2e)', () => {
   const tokenFor = (role: UserRole) =>
     accessTokens.sign({ id: randomUUID(), role });
 
+  /** Signed with the app's key, expired a second ago. */
+  const expiredToken = () => {
+    const now = Math.floor(Date.now() / 1000);
+    return new JwtService({ secret: auth.accessSecret }).signAsync(
+      {
+        sub: randomUUID(),
+        role: UserRole.Customer,
+        iat: now - 60,
+        exp: now - 1,
+      },
+      { issuer: auth.issuer, audience: auth.audience },
+    );
+  };
+
   const get = (path: string, token?: string) => {
     const req = request(app.getHttpServer()).get(`/api/guard-test/${path}`);
     return token ? req.set('Authorization', `Bearer ${token}`) : req;
@@ -94,20 +115,7 @@ describe('Auth guards (e2e)', () => {
     });
 
     it('refuses an expired token, with the same body', async () => {
-      const now = Math.floor(Date.now() / 1000);
-      const expired = await new JwtService({
-        secret: auth.accessSecret,
-      }).signAsync(
-        {
-          sub: randomUUID(),
-          role: UserRole.Customer,
-          iat: now - 60,
-          exp: now - 1,
-        },
-        { issuer: auth.issuer, audience: auth.audience },
-      );
-
-      const res = await get('me', expired).expect(401);
+      const res = await get('me', await expiredToken()).expect(401);
 
       expect(res.body.error).toMatchObject({
         code: 'UNAUTHORIZED',
@@ -137,6 +145,36 @@ describe('Auth guards (e2e)', () => {
       expect(res.body.error).toMatchObject({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'Internal server error',
+      });
+    });
+
+    describe('@OptionalAuth()', () => {
+      it('serves a caller without a token as a guest', async () => {
+        const res = await get('optional').expect(200);
+
+        expect(res.body).toEqual({ user: null });
+      });
+
+      it('knows a caller with a valid token', async () => {
+        const user: AuthUser = { id: randomUUID(), role: UserRole.Customer };
+
+        const res = await get('optional', await accessTokens.sign(user)).expect(
+          200,
+        );
+
+        expect(res.body).toEqual({ user });
+      });
+
+      it('refuses an expired token with the usual 401: never a silent guest', async () => {
+        const res = await get('optional', await expiredToken()).expect(401);
+
+        expect(res.body.error).toMatchObject({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+        });
+        expect(res.headers['www-authenticate']).toBe(
+          'Bearer error="invalid_token"',
+        );
       });
     });
 

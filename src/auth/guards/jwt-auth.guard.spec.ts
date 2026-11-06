@@ -4,6 +4,7 @@ import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-hos
 import { JwtService } from '@nestjs/jwt';
 import type { AuthConfig } from '@/config/auth.config';
 import { UserRole } from '@/users/entities/user.entity';
+import { OptionalAuth } from '../decorators/optional-auth.decorator';
 import { Public } from '../decorators/public.decorator';
 import {
   AccessTokensService,
@@ -34,6 +35,11 @@ class PrivateController {
 @Public()
 class PublicController {
   open(this: void) {}
+}
+
+class OptionalController {
+  @OptionalAuth()
+  maybe(this: void) {}
 }
 
 /** A request to `handler` of `controller`, as Nest hands it to guards. */
@@ -190,6 +196,50 @@ describe('JwtAuthGuard', () => {
 
         expect(await expectUnauthorized(`Bearer ${bad}`)).toBe(
           'Bearer error="invalid_token"',
+        );
+      },
+    );
+  });
+  describe('@OptionalAuth() routes', () => {
+    const callOptional = (authorization?: string) =>
+      call(
+        OptionalController,
+        OptionalController.prototype.maybe,
+        authorization,
+      );
+
+    it('lets a caller without a header in as a guest', async () => {
+      const verify = jest.spyOn(accessTokens, 'verify');
+      const { context, request } = callOptional();
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.user).toBeUndefined();
+      expect(verify).not.toHaveBeenCalled();
+    });
+
+    it('reads a valid token: request.user is the caller', async () => {
+      const { context, request } = callOptional(`Bearer ${token}`);
+
+      await expect(guard.canActivate(context)).resolves.toBe(true);
+      expect(request.user).toEqual(user);
+    });
+
+    it.each([
+      ['garbage', 'Bearer not-a-jwt', 'Bearer error="invalid_token"'],
+      ['another scheme', 'Basic YTpi', 'Bearer'],
+      ['an empty header', '', 'Bearer'],
+    ])(
+      'refuses %s with 401, not a silent guest',
+      async (_, authorization, challenge) => {
+        const { context, request, response } = callOptional(authorization);
+
+        await expect(guard.canActivate(context)).rejects.toThrow(
+          UnauthorizedException,
+        );
+        expect(request.user).toBeUndefined();
+        expect(response.setHeader).toHaveBeenCalledWith(
+          'WWW-Authenticate',
+          challenge,
         );
       },
     );

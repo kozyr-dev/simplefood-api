@@ -72,6 +72,28 @@ const validationSchema = Joi.object({
   // X-Forwarded-For only this many hops deep. 0: the header is ignored, as it
   // can be forged by anyone who reaches the API directly.
   TRUST_PROXY_HOPS: Joi.number().integer().min(0).default(0),
-});
+  // Read by the `mail` namespace in config/mail.config.ts. Locally: Mailpit.
+  SMTP_HOST: Joi.string().hostname().required(),
+  SMTP_PORT: Joi.number().port().min(1).default(587),
+  // true: TLS from the first byte (usually port 465). false: STARTTLS, which
+  // production then requires (mail.config.ts), so it can't fall back to plain text.
+  SMTP_SECURE: Joi.boolean().default(false),
+  // Both or neither (see .and() below); Mailpit needs none.
+  SMTP_USER: Joi.string(),
+  SMTP_PASSWORD: Joi.string(),
+  // Sender address; the display name "SimpleFood" is set in code.
+  MAIL_FROM: Joi.string().email().required(),
+  // The shop's inbox: new orders and contact messages.
+  MAIL_NOTIFY_TO: Joi.string().email().required(),
+  // The site's address, for links in emails (password reset, verification).
+  FRONTEND_URL: Joi.string()
+    .uri({ scheme: ['http', 'https'] })
+    .required()
+    .when('NODE_ENV', {
+      is: 'production',
+      // oxlint-disable-next-line unicorn/no-thenable
+      then: Joi.string().uri({ scheme: ['https'] }),
+    }),
+}).and('SMTP_USER', 'SMTP_PASSWORD');
 
 export default validationSchema;

@@ -4,6 +4,8 @@ import { Test, type TestingModuleBuilder } from '@nestjs/testing';
 import { AppModule } from '@/app.module';
 import { configureApp } from '@/app.setup';
 import { Public } from '@/auth/decorators/public.decorator';
+import { MAIL_TRANSPORT } from '@/mail/types/mail.types';
+import { FakeMailTransport } from './mail';
 
 /** Test-only route: any test that needs "some endpoint that returns 200". */
 @Public()
@@ -29,6 +31,9 @@ export interface TestAppOptions {
 /**
  * The real AppModule with the real HTTP pipeline (configureApp), exactly as
  * main.ts builds it, plus test-only controllers. Remember `await app.close()`.
+ *
+ * SMTP is always replaced by a FakeMailTransport (read it with mailbox()):
+ * no test can send real mail.
  */
 export async function createTestApp(
   options: TestAppOptions = {},
@@ -36,7 +41,9 @@ export async function createTestApp(
   const builder = Test.createTestingModule({
     imports: [AppModule, ...(options.imports ?? [])],
     controllers: [PingController, ...(options.controllers ?? [])],
-  });
+  })
+    .overrideProvider(MAIL_TRANSPORT)
+    .useValue(new FakeMailTransport());
   const moduleFixture = await (
     options.override?.(builder) ?? builder
   ).compile();

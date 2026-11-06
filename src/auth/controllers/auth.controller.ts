@@ -25,6 +25,7 @@ import { NoStore } from '@/common/http/no-store.decorator';
 import type { DataResponse } from '@/common/http/responses';
 import { CurrentUser } from '../decorators/current-user.decorator';
 import { Public } from '../decorators/public.decorator';
+import { ThrottleBy } from '../decorators/throttle-by.decorator';
 import { AuthResultDto } from '../dto/auth-result.dto';
 import { AuthTokensDto } from '../dto/auth-tokens.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
@@ -65,6 +66,7 @@ export class AuthController {
   @Public()
   @Post('login')
   // Per IP and identifier; the 6th try in a minute blocks for 5 minutes.
+  @ThrottleBy('identifier')
   @Throttle({
     default: { limit: 5, ttl: minutes(1), blockDuration: minutes(5) },
   })

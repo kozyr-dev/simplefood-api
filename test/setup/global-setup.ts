@@ -52,6 +52,14 @@ export default async function globalSetup(globalConfig: {
     JWT_ACCESS_SECRET: 'e2e-test-secret-e2e-test-secret-e2e',
     // bcrypt's minimum: cost 12 would add ~250 ms to every register and login.
     BCRYPT_ROUNDS: '4',
+    // Required by the env schema. createTestApp() swaps the SMTP transport
+    // for a fake, so nothing is sent; port 1 has no server, so a test that
+    // bypassed the fake would fail at once instead of mailing anyone.
+    SMTP_HOST: 'localhost',
+    SMTP_PORT: '1',
+    MAIL_FROM: 'noreply@example.com',
+    MAIL_NOTIFY_TO: 'shop@example.com',
+    FRONTEND_URL: 'http://localhost:3000',
   });
 
   // Same options the app and the CLI use (read from the env set above).
