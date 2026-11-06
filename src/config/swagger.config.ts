@@ -64,6 +64,7 @@ export function buildSwaggerDocumentConfig() {
         'Placing orders (guests too; prices come from the server) and the ' +
           "logged-in customer's order history.",
       )
+      .addTag('contact', "The site's contact form.")
       // Routes that need a login say so with ApiAuth() (common/http).
       .addBearerAuth({
         type: 'http',

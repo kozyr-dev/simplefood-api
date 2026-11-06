@@ -183,6 +183,7 @@ describe('Swagger (e2e)', () => {
           'auth',
           'users',
           'orders',
+          'contact',
         ]);
         for (const tag of document.tags ?? []) {
           expect(tag.description).toEqual(expect.any(String));
@@ -313,6 +314,7 @@ describe('Swagger (e2e)', () => {
           'Auth_logout',
           'Auth_refresh',
           'Auth_register',
+          'Contact_submit',
           'Orders_create',
           'Users_updateMe',
         ]);
@@ -336,6 +338,7 @@ describe('Swagger (e2e)', () => {
         ['Users_updateMe', ['200', '400', '401', '409']],
         ['Orders_create', ['201', '400', '401', '409']],
         ['Orders_findMine', ['200', '401']],
+        ['Contact_submit', ['204', '429']],
       ])('%s documents its own responses: %j', (operationId, statuses) => {
         const { responses } = operationOf(operationId);
 
@@ -373,11 +376,14 @@ describe('Swagger (e2e)', () => {
         });
       });
 
-      it('has no body for the 204 of logout', () => {
-        expect(operationOf('Auth_logout').responses['204']).toEqual({
-          description: expect.any(String),
-        });
-      });
+      it.each(['Auth_logout', 'Contact_submit'])(
+        'has no body for the 204 of %s',
+        (operationId) => {
+          expect(operationOf(operationId).responses['204']).toEqual({
+            description: expect.any(String),
+          });
+        },
+      );
     });
   });
 

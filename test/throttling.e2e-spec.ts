@@ -185,6 +185,21 @@ describe('Rate limits (e2e)', () => {
     },
   );
 
+  it('POST /contact: 5 per hour per IP and email; other emails from the same IP are unaffected', async () => {
+    const contact = (email: string) =>
+      http().post('/api/contact').send({ email });
+
+    expect(await statuses(5, () => contact('olena@example.com'))).toEqual(
+      Array<number>(5).fill(400),
+    );
+
+    // The same address in any case, with spaces: the same sender.
+    const retryAfter = retryAfterOf(await contact(' Olena@Example.com '));
+    expect(retryAfter).toBeGreaterThan(3595);
+    expect(retryAfter).toBeLessThanOrEqual(3600);
+    await contact('ivan@example.com').expect(400);
+  });
+
   it('ignores a forged X-Forwarded-For (TRUST_PROXY_HOPS=0)', async () => {
     await statuses(10, () =>
       http()
