@@ -4,10 +4,15 @@ import type { Params } from 'nestjs-pino';
 import type { Options } from 'pino-http';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { DataSource } from 'typeorm';
 import { Public } from '@/auth/decorators/public.decorator';
 import { REQUEST_ID_HEADER } from '@/common/logging/constants';
 import loggerConfig from '@/config/logger.config';
+import { resetDatabase } from './utils/database';
+import { createUser } from './utils/factories';
+import { linkToken, mailbox } from './utils/mail';
 import { createTestApp, UUID } from './utils/test-app';
+import { resetRateLimits } from './utils/throttler';
 
 /** Test-only routes; registered only in this testing module. */
 @Public()
@@ -195,6 +200,34 @@ describe('Logging and request IDs (e2e)', () => {
       expect(line?.req?.headers.authorization).toBe('[Redacted]');
       expect(line?.req?.headers.cookie).toBe('[Redacted]');
       expect(JSON.stringify(lines)).not.toMatch(/secret-token|secret-cookie/);
+    });
+
+    // Here, not in password-reset.e2e-spec.ts: nestjs-pino keeps one logger
+    // per process, so only the first app of a test file can capture its logs.
+    it('never logs a password-reset token, the email or the new password', async () => {
+      const dataSource = app.get(DataSource);
+      await resetDatabase(dataSource);
+      resetRateLimits(app);
+      await createUser(dataSource, { email: 'ivan@example.com' });
+      const newPassword = 'a brand new secret';
+
+      await http()
+        .post('/api/auth/forgot-password')
+        .send({ email: 'ivan@example.com' })
+        .expect(204);
+      const token = linkToken((await mailbox(app)).sent.at(-1));
+      const reset = () =>
+        http().post('/api/auth/reset-password').send({ token, newPassword });
+      await reset().expect(204);
+      await reset().expect(400); // a warn line, with the request
+
+      expect(
+        lines.filter((line) => line.req?.url === '/api/auth/reset-password'),
+      ).toHaveLength(2);
+      const logged = JSON.stringify(lines);
+      for (const secret of [token, 'ivan@example.com', newPassword]) {
+        expect(logged).not.toContain(secret);
+      }
     });
 
     it('does not log health-check requests', async () => {

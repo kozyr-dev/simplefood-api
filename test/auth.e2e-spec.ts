@@ -8,11 +8,11 @@ import type { AuthResultDto } from '@/auth/dto/auth-result.dto';
 import type { AuthTokensDto } from '@/auth/dto/auth-tokens.dto';
 import { RefreshToken } from '@/auth/entities/refresh-token.entity';
 import {
-  hashRefreshToken,
   RefreshTokensService,
   REUSE_GRACE_MS,
 } from '@/auth/services/refresh-tokens.service';
 import type { AuthUser } from '@/auth/types/auth.types';
+import { hashToken } from '@/common/crypto/tokens';
 import authConfig from '@/config/auth.config';
 import { User, UserRole } from '@/users/entities/user.entity';
 import { bearer, loginAs } from './utils/auth';
@@ -86,7 +86,7 @@ describe('Auth (e2e)', () => {
     ).passwordHash;
 
   const ageToken = (token: string, changes: Partial<RefreshToken>) =>
-    tokens.update({ tokenHash: hashRefreshToken(token) }, changes);
+    tokens.update({ tokenHash: hashToken(token) }, changes);
 
   /** The error body, without the per-request id. */
   const errorOf = (res: request.Response) => {
@@ -341,7 +341,7 @@ describe('Auth (e2e)', () => {
 
       const [a, b] = await Promise.all(
         [first, second].map(({ refreshToken }) =>
-          tokens.findOneByOrFail({ tokenHash: hashRefreshToken(refreshToken) }),
+          tokens.findOneByOrFail({ tokenHash: hashToken(refreshToken) }),
         ),
       );
       expect(a.familyId).not.toBe(b.familyId);

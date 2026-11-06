@@ -32,3 +32,20 @@ export async function resetDatabase(dataSource: DataSource): Promise<void> {
     );
   }
 }
+
+/**
+ * Resolves once some query in this database waits for a row lock: for race
+ * tests that hold a row in one transaction while another request reaches it.
+ */
+export async function waitForLockWait(dataSource: DataSource): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    const [{ waiting }] = await dataSource.query<{ waiting: number }[]>(
+      `SELECT count(*)::int AS waiting FROM pg_stat_activity
+       WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+    );
+    if (waiting > 0) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error('No query started waiting for a lock within 5 s');
+}

@@ -4,6 +4,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import authConfig, { type AuthConfig } from '@/config/auth.config';
+import mailConfig from '@/config/mail.config';
+import { MailModule } from '@/mail/mail.module';
 import { UsersModule } from '@/users/users.module';
 import { AuthController } from './controllers/auth.controller';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -18,12 +20,14 @@ import { RefreshTokensService } from './services/refresh-tokens.service';
 
 /**
  * Sessions, tokens and the global guards: every route needs a login unless
- * it's `@Public()`. Accounts and password hashing come from UsersModule. Serves /auth (register, login, refresh, logout,
- * change-password).
+ * it's `@Public()`. Accounts, password hashing and account tokens come from
+ * UsersModule. Serves /auth (register, login, refresh, logout,
+ * change-password, forgot-password, reset-password).
  */
 @Module({
   imports: [
     ConfigModule.forFeature(authConfig),
+    ConfigModule.forFeature(mailConfig),
     JwtModule.registerAsync({
       imports: [ConfigModule.forFeature(authConfig)],
       inject: [authConfig.KEY],
@@ -31,6 +35,7 @@ import { RefreshTokensService } from './services/refresh-tokens.service';
     }),
     TypeOrmModule.forFeature([RefreshToken]),
     UsersModule,
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [

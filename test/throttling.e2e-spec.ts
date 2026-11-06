@@ -7,6 +7,7 @@ import type { User } from '@/users/entities/user.entity';
 import { bearer, loginAs } from './utils/auth';
 import { resetDatabase } from './utils/database';
 import { createUser, TEST_PASSWORD } from './utils/factories';
+import { mailbox } from './utils/mail';
 import { createTestApp, UUID } from './utils/test-app';
 import { resetRateLimits } from './utils/throttler';
 
@@ -28,6 +29,9 @@ describe('Rate limits (e2e)', () => {
   });
 
   beforeEach(async () => {
+    // Forgot-password lookups run after the response: let the last test's
+    // finish before emptying the tables they write to.
+    await mailbox(app);
     await resetDatabase(dataSource);
     resetRateLimits(app);
     user = await createUser(dataSource, { email: 'ivan@example.com' });
@@ -131,6 +135,13 @@ describe('Rate limits (e2e)', () => {
       { refreshToken: 'unknown' },
     ],
     ['POST /auth/logout', 30, 60, '/api/auth/logout', { refreshToken: 'x' }],
+    [
+      'POST /auth/reset-password',
+      10,
+      3600,
+      '/api/auth/reset-password',
+      { token: 'x' },
+    ],
     // A guest: no token, so counted by IP (the browser calls the API directly).
     ['POST /orders (guest)', 10, 3600, '/api/orders', {}],
   ])(
@@ -198,6 +209,20 @@ describe('Rate limits (e2e)', () => {
     expect(retryAfter).toBeGreaterThan(3595);
     expect(retryAfter).toBeLessThanOrEqual(3600);
     await contact('ivan@example.com').expect(400);
+  });
+
+  it('POST /auth/forgot-password: 3 per hour per IP and email; other emails from the same IP are unaffected', async () => {
+    const forgot = (email: string) =>
+      http().post('/api/auth/forgot-password').send({ email });
+
+    expect(await statuses(3, () => forgot('ivan@example.com'))).toEqual([
+      204, 204, 204,
+    ]);
+
+    const retryAfter = retryAfterOf(await forgot(' IVAN@example.com '));
+    expect(retryAfter).toBeGreaterThan(3595);
+    expect(retryAfter).toBeLessThanOrEqual(3600);
+    await forgot('olena@example.com').expect(204);
   });
 
   it('ignores a forged X-Forwarded-For (TRUST_PROXY_HOPS=0)', async () => {

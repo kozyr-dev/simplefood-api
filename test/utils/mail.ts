@@ -46,10 +46,27 @@ export class FakeMailTransport implements MailTransport {
  * The fake transport, once all mail in flight is done: emails go out after
  * the response, so a test reads them through this, e.g.
  * `expect((await mailbox(app)).sent).toHaveLength(1)`.
+ *
+ * Also await it before `resetDatabase()` in suites whose background mail
+ * jobs touch the database (forgot-password): a job still writing while the
+ * tables are truncated can deadlock with the TRUNCATE.
  */
 export async function mailbox(
   app: INestApplication,
 ): Promise<FakeMailTransport> {
   await app.get(MailService).idle();
   return app.get<FakeMailTransport>(MAIL_TRANSPORT);
+}
+
+/**
+ * The token of the account link in an email's text (`…#token=…`), e.g.
+ * `linkToken((await mailbox(app)).sent.at(-1))`. Throws if there's none.
+ */
+export function linkToken(message: SendMailOptions | undefined): string {
+  const text = typeof message?.text === 'string' ? message.text : '';
+  const token = /#token=([\w-]+)/.exec(text)?.[1];
+  if (!token) {
+    throw new Error('no link with a token in this email');
+  }
+  return token;
 }

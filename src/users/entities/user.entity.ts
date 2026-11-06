@@ -64,4 +64,11 @@ export class User extends AppBaseEntity {
   /** Blocked users can't log in or refresh; their sessions are revoked. */
   @Column({ type: 'boolean', default: false })
   blocked: boolean;
+
+  /**
+   * When the owner proved they read mail at `email` (a verification or
+   * password-reset link); `null` until then, and again after an email change.
+   */
+  @Column({ type: 'timestamptz', nullable: true })
+  emailVerifiedAt: Date | null;
 }

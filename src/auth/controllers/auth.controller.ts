@@ -31,7 +31,9 @@ import { AuthTokensDto } from '../dto/auth-tokens.dto';
 import { ChangePasswordDto } from '../dto/change-password.dto';
 import { LoginDto } from '../dto/login.dto';
 import { RefreshTokenDto } from '../dto/refresh-token.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { RegisterDto } from '../dto/register.dto';
+import { ResetPasswordDto } from '../dto/reset-password.dto';
 import { AuthThrottlerGuard } from '../guards/auth-throttler.guard';
 import { AuthService } from '../services/auth.service';
 import type { AuthUser } from '../types/auth.types';
@@ -141,5 +143,45 @@ export class AuthController {
     @Body() dto: ChangePasswordDto,
   ): Promise<DataResponse<AuthResultDto>> {
     return { data: await this.auth.changePassword(user, dto) };
+  }
+
+  /**
+   * Emails a link to set a new password (valid for 1 hour), if an active
+   * account has this email. Always 204, at once: the answer never says
+   * whether the account exists.
+   */
+  @Public()
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  // Per IP and email: caps the emails any one address can be sent.
+  @ThrottleBy('email')
+  @Throttle({ default: { limit: 3, ttl: hours(1) } })
+  @ApiNoContentResponse({
+    description:
+      'Accepted. If an active account has this email, a reset link is on its way.',
+  })
+  forgotPassword(@Body() { email }: ForgotPasswordDto): void {
+    this.auth.requestPasswordReset(email);
+  }
+
+  /**
+   * Sets a new password with the token from the reset link. Every session
+   * ends; the user then logs in with the new password.
+   */
+  @Public()
+  @Post('reset-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 10, ttl: hours(1) } })
+  @ApiNoContentResponse({
+    description: 'The password is changed and every session has ended.',
+  })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description:
+      'Validation failed, or the link is unknown, used, expired or replaced ' +
+      'by a newer one (`INVALID_TOKEN`): ask for a new one.',
+  })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
+    await this.auth.resetPassword(dto);
   }
 }

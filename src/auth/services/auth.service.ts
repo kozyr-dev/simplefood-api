@@ -1,21 +1,32 @@
 import {
+  BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import mailConfig, { type MailConfig } from '@/config/mail.config';
+import { MailService } from '@/mail/services/mail.service';
+import { AccountTokenPurpose } from '@/users/entities/account-token.entity';
 import { toUserDto } from '@/users/mappers/user.mapper';
+import { AccountTokensService } from '@/users/services/account-tokens.service';
 import {
   PASSWORD_MAX_BYTES,
   PasswordService,
 } from '@/users/services/password.service';
 import { UsersService, wrongPassword } from '@/users/services/users.service';
 import type { User } from '@/users/entities/user.entity';
+import {
+  accountLink,
+  passwordResetEmail,
+} from '@/users/templates/account-emails';
 import type { AuthResultDto } from '../dto/auth-result.dto';
 import type { AuthTokensDto } from '../dto/auth-tokens.dto';
 import type { ChangePasswordDto } from '../dto/change-password.dto';
 import type { LoginDto } from '../dto/login.dto';
 import type { RegisterDto } from '../dto/register.dto';
+import type { ResetPasswordDto } from '../dto/reset-password.dto';
 import type { AuthUser } from '../types/auth.types';
 import { AccessTokensService } from './access-tokens.service';
 import {
@@ -32,6 +43,18 @@ function invalidCredentials(): UnauthorizedException {
 }
 
 /**
+ * A reset link that can't be used: unknown, used, expired, replaced by a
+ * newer one, or its account changed email or was blocked. One answer for
+ * all; 400, not 401 (D13).
+ */
+function invalidToken(): BadRequestException {
+  return new BadRequestException({
+    message: 'This link is invalid or has expired',
+    code: 'INVALID_TOKEN',
+  });
+}
+
+/**
  * The /auth flows. Passwords are hashed before a transaction starts (bcrypt
  * takes ~200 ms at cost 12; no connection is held meanwhile).
  */
@@ -42,6 +65,9 @@ export class AuthService {
     private readonly passwords: PasswordService,
     private readonly accessTokens: AccessTokensService,
     private readonly refreshTokens: RefreshTokensService,
+    private readonly accountTokens: AccountTokensService,
+    private readonly mail: MailService,
+    @Inject(mailConfig.KEY) private readonly mailSettings: MailConfig,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -133,6 +159,56 @@ export class AuthService {
         user,
         await this.refreshTokens.issue(user.id, manager),
       );
+    });
+  }
+
+  /**
+   * Emails a reset link if an active account has this email. Returns at
+   * once, whatever the email: the lookup and the sending run in the
+   * background, so neither the answer nor its timing tells whether the
+   * account exists (D12).
+   */
+  requestPasswordReset(email: string): void {
+    this.mail.defer('password-reset', async () => {
+      const user = await this.users.findByEmail(email);
+      if (!user || user.blocked) {
+        return;
+      }
+      const token = await this.accountTokens.issue(
+        user,
+        AccountTokenPurpose.PasswordReset,
+      );
+      // To the stored address, in its stored case, not the one typed.
+      this.mail.send('password-reset', {
+        to: user.email,
+        ...passwordResetEmail(
+          accountLink(this.mailSettings.frontendUrl, '/reset-password', token),
+        ),
+      });
+    });
+  }
+
+  /**
+   * Sets a new password from a reset link, in one transaction: the link is
+   * used up, every session ends (a thief's too), and the email counts as
+   * verified (the link proved the mailbox). Doesn't log in (OWASP): the
+   * client sends the user to the login form. Access tokens already issued
+   * stay valid until they expire (D3).
+   */
+  async resetPassword({ token, newPassword }: ResetPasswordDto): Promise<void> {
+    const passwordHash = await this.passwords.hash(newPassword);
+    await this.dataSource.transaction(async (manager) => {
+      const user = await this.accountTokens.consume(
+        token,
+        AccountTokenPurpose.PasswordReset,
+        manager,
+      );
+      if (!user) {
+        throw invalidToken();
+      }
+      await this.users.setPassword(user.id, passwordHash, manager);
+      await this.users.markEmailVerified(user.id, manager);
+      await this.refreshTokens.revokeAllForUser(user.id, manager);
     });
   }
 

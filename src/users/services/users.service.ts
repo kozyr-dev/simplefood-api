@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   DataSource,
+  IsNull,
   QueryFailedError,
   type EntityManager,
   type Repository,
@@ -164,6 +165,24 @@ export class UsersService {
     } catch (error) {
       throw toConflict(error) ?? error;
     }
+  }
+
+  /** By email, in any letter case (citext); `null` if there's no such account. */
+  findByEmail(email: string): Promise<User | null> {
+    return this.users.findOneBy({ email });
+  }
+
+  /** The owner proved they read mail at the account's address. Kept if already set. */
+  async markEmailVerified(
+    id: string,
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<void> {
+    await manager
+      .getRepository(User)
+      .update(
+        { id, emailVerifiedAt: IsNull() },
+        { emailVerifiedAt: new Date() },
+      );
   }
 
   async setPassword(

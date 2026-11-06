@@ -103,7 +103,7 @@ The migration scripts (except `create`) build first and use the TypeORM CLI entr
   - **Files that write data** call `resetDatabase(dataSource)` in `beforeEach` ([test/utils/database.ts](test/utils/database.ts)), and create rows with the factories in [test/utils/factories.ts](test/utils/factories.ts) (`createMedia(dataSource, { width: null })`). Add a factory for each new entity.
   - Get a `DataSource` with `app.get(DataSource)` in tests that boot the app, or `openTestDataSource()` in tests that only use repositories.
   - **Logged-in calls:** `createUser(dataSource, { role: UserRole.Admin })` (hashed at cost 4), then `const { accessToken } = await loginAs(app, user)` and `.set(bearer(accessToken))` ([test/utils/auth.ts](test/utils/auth.ts)). A test-only controller needs `@Public()` unless it is meant to require a login.
-  - **Email:** `createTestApp()` replaces SMTP with a `FakeMailTransport`, so no test sends real mail. Mail goes out after the response: read it with `(await mailbox(app)).sent` ([test/utils/mail.ts](test/utils/mail.ts)), which waits for it, and `clear()` it in `beforeEach` when the app is shared.
+  - **Email:** `createTestApp()` replaces SMTP with a `FakeMailTransport`, so no test sends real mail. Mail goes out after the response: read it with `(await mailbox(app)).sent` ([test/utils/mail.ts](test/utils/mail.ts)), which waits for it, and `clear()` it in `beforeEach` when the app is shared. Do that **before** `resetDatabase()` in suites that call forgot-password: its account lookup runs in the background, and must not overlap the truncate.
   - **Rate limits** stay at their production values in tests. Files that call the limited routes call `resetRateLimits(app)` in `beforeEach` ([test/utils/throttler.ts](test/utils/throttler.ts)).
   - `test/migrations.e2e-spec.ts` checks the migrations themselves: they apply cleanly, the schema matches the entities, and every `down()` reverts.
 - The `@nestjs/swagger` CLI plugin doesn't run under Jest (`isolatedModules`), so DTO properties only appear in the docs of a real build.
@@ -135,10 +135,12 @@ src/
   database/         TypeORM CLI data source, naming strategy, SQL logger (never logs parameters),
                     entities/ (base entity, Seo), migrations/
   auth/             sessions and access control: POST /api/auth/register, /login, /refresh,
-                    /logout, /change-password; the global JwtAuthGuard and RolesGuard,
+                    /logout, /change-password, /forgot-password, /reset-password; the global
+                    JwtAuthGuard and RolesGuard,
                     @Public(), @OptionalAuth(), @Roles(), @CurrentUser(), AuthThrottlerGuard
                     with @ThrottleBy()
-  users/            accounts (User entity, PasswordService): GET and PATCH /api/users/me
+  users/            accounts (User entity, PasswordService), single-use links sent by email
+                    (AccountTokensService, the account emails): GET and PATCH /api/users/me
   orders/           POST /api/orders (guests too, priced on the server), GET /api/orders/me;
                     the order emails (templates/)
   contact/          POST /api/contact: saves the message, emails the shop (honeypot against bots)

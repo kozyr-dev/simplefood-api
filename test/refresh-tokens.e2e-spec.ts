@@ -7,30 +7,16 @@ import { App } from 'supertest/types';
 import { DataSource, type Repository } from 'typeorm';
 import { RefreshToken } from '@/auth/entities/refresh-token.entity';
 import {
-  hashRefreshToken,
   REUSE_GRACE_MS,
   RefreshTokensService,
 } from '@/auth/services/refresh-tokens.service';
+import { hashToken } from '@/common/crypto/tokens';
 import { User, UserRole } from '@/users/entities/user.entity';
-import { resetDatabase } from './utils/database';
+import { resetDatabase, waitForLockWait } from './utils/database';
 import { createUser, daysFromNow } from './utils/factories';
 import { createTestApp } from './utils/test-app';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** Resolves once some query in this database waits for a row lock. */
-async function waitForLockWait(dataSource: DataSource): Promise<void> {
-  const deadline = Date.now() + 5_000;
-  while (Date.now() < deadline) {
-    const [{ waiting }] = await dataSource.query<{ waiting: number }[]>(
-      `SELECT count(*)::int AS waiting FROM pg_stat_activity
-       WHERE datname = current_database() AND wait_event_type = 'Lock'`,
-    );
-    if (waiting > 0) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  throw new Error('No query started waiting for a lock within 5 s');
-}
 
 /*
  * Against real Postgres: rotation relies on a transaction and on how
@@ -65,10 +51,10 @@ describe('RefreshTokensService (e2e)', () => {
   });
 
   const rowOf = (token: string) =>
-    rows.findOneOrFail({ where: { tokenHash: hashRefreshToken(token) } });
+    rows.findOneOrFail({ where: { tokenHash: hashToken(token) } });
 
   const updateRow = (token: string, changes: Partial<RefreshToken>) =>
-    rows.update({ tokenHash: hashRefreshToken(token) }, changes);
+    rows.update({ tokenHash: hashToken(token) }, changes);
 
   /** Rotates, expecting the one 401 every failure gets. */
   async function expectRefused(token: string): Promise<void> {
@@ -92,7 +78,7 @@ describe('RefreshTokensService (e2e)', () => {
       const row = await rowOf(token);
 
       expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-      expect(row.tokenHash).toBe(hashRefreshToken(token));
+      expect(row.tokenHash).toBe(hashToken(token));
       expect(row.tokenHash).not.toContain(token);
       expect(row.revokedAt).toBeNull();
     });
@@ -123,15 +109,13 @@ describe('RefreshTokensService (e2e)', () => {
 
       await service.issue(user.id);
 
-      expect(
-        await rows.existsBy({ tokenHash: hashRefreshToken(expired) }),
-      ).toBe(false);
-      expect(await rows.existsBy({ tokenHash: hashRefreshToken(live) })).toBe(
+      expect(await rows.existsBy({ tokenHash: hashToken(expired) })).toBe(
+        false,
+      );
+      expect(await rows.existsBy({ tokenHash: hashToken(live) })).toBe(true);
+      expect(await rows.existsBy({ tokenHash: hashToken(othersExpired) })).toBe(
         true,
       );
-      expect(
-        await rows.existsBy({ tokenHash: hashRefreshToken(othersExpired) }),
-      ).toBe(true);
     });
   });
 
@@ -281,7 +265,7 @@ describe('RefreshTokensService (e2e)', () => {
           await other.startTransaction();
           await other.manager.update(
             RefreshToken,
-            { tokenHash: hashRefreshToken(token) },
+            { tokenHash: hashToken(token) },
             { revokedAt: new Date() },
           );
 

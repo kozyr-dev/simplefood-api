@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   Inject,
   Injectable,
@@ -13,6 +13,7 @@ import {
   type EntityManager,
   type Repository,
 } from 'typeorm';
+import { generateToken, hashToken } from '@/common/crypto/tokens';
 import authConfig, { type AuthConfig } from '@/config/auth.config';
 import type { User } from '@/users/entities/user.entity';
 import { RefreshToken } from '../entities/refresh-token.entity';
@@ -36,11 +37,6 @@ export interface RotatedRefreshToken {
   /** Loaded fresh: a role change or block applies from the next refresh. */
   user: User;
   refreshToken: IssuedRefreshToken;
-}
-
-/** SHA-256, hex: the token is 256 random bits, so a slow hash adds nothing. */
-export function hashRefreshToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
 }
 
 /** Same error for unknown, used, expired and revoked: no hints for a thief. */
@@ -116,7 +112,7 @@ export class RefreshTokensService {
   async revokeFamily(token: string): Promise<void> {
     const stored = await this.tokens.findOne({
       select: { id: true, familyId: true },
-      where: { tokenHash: hashRefreshToken(token) },
+      where: { tokenHash: hashToken(token) },
     });
     if (stored) {
       await this.revokeFamilyById(this.tokens, stored.familyId, new Date());
@@ -142,7 +138,7 @@ export class RefreshTokensService {
   ): Promise<RotatedRefreshToken | null> {
     const now = new Date();
     const stored = await repository.findOne({
-      where: { tokenHash: hashRefreshToken(token) },
+      where: { tokenHash: hashToken(token) },
       relations: { user: true },
     });
     if (!stored) {
@@ -199,7 +195,7 @@ export class RefreshTokensService {
       now: Date;
     },
   ): Promise<IssuedRefreshToken> {
-    const token = randomBytes(32).toString('base64url');
+    const token = generateToken();
     // Idle expiry, but never past the end of the session.
     const expiresAt = new Date(
       Math.min(
@@ -211,7 +207,7 @@ export class RefreshTokensService {
     await repository.insert({
       user: { id: family.userId },
       familyId: family.familyId,
-      tokenHash: hashRefreshToken(token),
+      tokenHash: hashToken(token),
       expiresAt,
       familyExpiresAt: family.familyExpiresAt,
     });
