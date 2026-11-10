@@ -93,6 +93,7 @@ The API reads these variables. They are validated at startup in [src/config/env.
 | `npm run migration:generate -- src/database/migrations/<Name>`  | Generate a migration from entity changes                                     |
 | `npm run migration:create -- src/database/migrations/<Name>`    | Create an empty migration                                                    |
 | `npm run migration:run` / `migration:revert` / `migration:show` | Apply / undo the last / list migrations                                      |
+| `npm run import:strapi -- --sqlite <data.db> --uploads <dir>`   | Import the old Strapi site (see below)                                       |
 
 The migration scripts (except `create`) build first and use the TypeORM CLI entry point [src/database/data-source.ts](src/database/data-source.ts). That file loads `.env` and validates it with the same schema as the app.
 
@@ -123,6 +124,22 @@ The schema changes **only** through reviewed migration files in `src/database/mi
 
 The app never runs migrations on startup. In production they run as a separate step before the new version starts. CI fails if an entity changed without a migration, or if a `down()` doesn't revert.
 
+## Importing the Strapi data
+
+A one-off copy of the old Strapi site (its SQLite file and uploads folder) into this database and `UPLOADS_DIR`. It runs from `dist/` like the migration scripts, with the same `.env`:
+
+```bash
+npm run import:strapi -- --sqlite ../backend/.tmp/data.db --uploads ../backend/public/uploads --dry-run
+npm run import:strapi -- --sqlite ../backend/.tmp/data.db --uploads ../backend/public/uploads
+```
+
+- **One transaction.** Everything is imported, then compared with Strapi (counts, every page's section types and order, menu items, order totals, products with images); only then are the files copied and the transaction committed. Any error leaves the database as it was.
+- **`--dry-run`** does all of that and rolls back: nothing is saved or copied. Run it first.
+- **It refuses a database that already has data** in the tables it fills. `--replace` empties those tables first (`TRUNCATE`, order numbers restart at 1): **never use it on a database with real orders or accounts.**
+- **What it takes:** the published version of every document (drafts are ignored), all files (same `/uploads` URLs and sizes, nothing reprocessed), customers with their password hashes (logins keep working), orders (as text-only `legacyDishesText` orders, numbered by date), and contact messages.
+- **What it changes on the way:** alt texts that are just the file name become empty; accounts are not marked verified (Strapi had email confirmation off); a stale `MenuListItem` dropdown field and Strapi 4 `Image` links on products are left out.
+- It prints counts and warnings only, never names, emails or other values.
+
 ## Project structure
 
 ```text
@@ -150,6 +167,8 @@ src/
   mail/             MailService (sends in the background, after the commit), the SMTP
                     transport, shared email template helpers (templates/)
   health/           GET /health (Terminus)
+  strapi-import/    the one-off Strapi import (npm run import:strapi): reader (node:sqlite),
+                    importer, mappers, checks
   media/            uploaded images: POST /api/media, PATCH and DELETE /api/media/:id (admins and
                     editors); MediaService (checks, processes and stores them), the storage
                     (local disk); configureApp() serves the files at /uploads

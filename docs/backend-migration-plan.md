@@ -130,17 +130,18 @@ The OpenAPI spec comes from `@nestjs/swagger` at `/api/docs`. Optionally, genera
 - **Page sections.** Add one custom component, `SectionEditor.tsx`, registered via `ComponentLoader`, for `PageSection.data`. It switches on `type` and renders the matching form fields, plus pickers for products, media and blog categories. Ship v1 with a JSON editor and validation on save, then build the per-type forms.
 - **Dashboard.** Add a custom dashboard component with orders by status, today's orders and new contact messages.
 
-## Data migration (`api/scripts/migrate-from-strapi.ts`)
+## Data migration (`src/strapi-import/`, `npm run import:strapi`)
 
-This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 and writes through the TypeORM DataSource, so it can be re-run idempotently on a clean database.
+A one-off import, compiled with the app (it uses the entities) and run from `dist/` like the migration scripts. It reads `backend/.tmp/data.db` with Node's built-in `node:sqlite` (no native dependency) and writes through the TypeORM DataSource in **one transaction**, compared with the source before it commits. `--dry-run` rolls back; it refuses a database that has data unless `--replace` empties the imported tables. Usage: README, "Importing the Strapi data".
 
-- **Drafts.** Strapi 5 stores a draft and a published row per document. Take rows with `published_at IS NOT NULL`. For orders and contacts, take one row per `document_id`.
-- **Media.** Map `files` to `Media`. Resolve links through `files_related_mph`, using only the field `image`/`Image` that matches the current schema, and skip the 28 orphaned v4 `Image` links on products. Copy `backend/public/uploads` into `UPLOADS_DIR` as it is: the URLs (`/uploads/<hash>.jpg`) stay the same, and Strapi's sizes already match ours, so nothing is reprocessed. Map `name`, `alternative_text` → `alt`, `size` (kilobytes → bytes) and `formats` (url, width, height only).
-- **Users.** Strapi stores bcrypt hashes, so copy them as they are. Existing users keep their passwords. Create the admin user separately (via a seed or CLI command).
-- **Dynamic zones.** Read `components_sections_*` and `*_cmps` tables in order, map each to `PageSection{type, position, data}`, and turn component relations into ids.
-- **Orders.** Copy `dishes` into `legacyDishesText`, with no items. Strapi stores no shipping method: use `delivery`. Convert `amount` to kopiykas for `subtotal`. Order numbers are assigned fresh.
-- **Email verification.** Strapi's `confirmed` → `emailVerifiedAt` (the migration time).
-- **Checks.** Print per-entity counts and compare them with the Strapi document counts (41 products, 14 categories, 9 pages, and so on).
+- **Drafts.** Strapi 5 stores a draft and a published row per document. Take rows with `published_at IS NOT NULL` (exactly one per document in this database). Relations may point at either row: they are resolved through `document_id`.
+- **Media.** All 79 `files` rows become `Media` with the same `/uploads/<hash>.jpg` URLs; the 219 files (originals and Strapi's sizes, which match ours) are copied into `UPLOADS_DIR` as they are, nothing reprocessed. `size`: kilobytes → bytes; `formats`: url, width, height; `folder` from the upload folder's name (`Products` → `products`). **`alternative_text` is the file name on all 75 files that have one** (Strapi's default): imported as no alt text. Only the `image` field of products is read: the 28 `Image` links are Strapi 4 leftovers.
+- **Users.** The bcrypt hashes are copied as they are, so passwords keep working (upgraded to cost 12 at the next login). All 4 are customers. **Not marked verified:** Strapi had `email_confirmation` off, so it set `confirmed` on every account without checking anything. Create the admin user separately (phase 7).
+- **Dynamic zones.** `pages_cmps` (`body`) and `homepages_cmps` (`Body`) in `order`; each component becomes a `PageSection` through `validateSectionData()`, with relations and media as the new ids; selected products keep their link order. The homepage is the page with slug `home`.
+- **Menus.** Only the fields in the current schema. The published dropdown also has 6 items under an old `MenuListItem` field, which Strapi no longer shows (two link to pages that don't exist): left out.
+- **Orders.** `dishes` → `legacyDishesText`, with no items; `amount` (hryvnias) → `subtotal` in kopiykas; all `delivery` (Strapi stored no shipping method; one without an address would become `pickup`); numbered afresh by date.
+- **Checks** (before commit): per-entity counts, products with an image, product-category links, every page's section types and order, menu items, the sum of order totals. A difference stops the import and saves nothing.
+- **Real data** (2026-11-10): 79 media, 14 categories, 41 products (all with an image), 1 blog category, 2 posts, settings, 10 + 5 + 8 menu items, 10 pages with 42 sections, 4 users, 7 orders, 4 contact messages. No warnings.
 
 ## Frontend changes (`frontend/`)
 
@@ -183,6 +184,7 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
    - ✅ Done (2026-11-10): `POST`/`PATCH`/`DELETE /api/media` for admins and editors (the first `@Roles()` routes; `ApiAuth({ roles })` documents the 403); `MediaService` recognises JPEG/PNG/WebP by their bytes, refuses SVG, animations, damaged files and over-40-megapixel images, re-encodes without metadata (GPS), turns photos upright, caps them at 2560 px and makes Strapi's four sizes with sharp 0.35; random file names on local disk (`UPLOADS_DIR`) behind a swappable `MEDIA_STORAGE`; `/uploads` served by the API with immutable caching and a cross-origin resource policy. One migration (`Media.name`). Covered by unit tests, Testcontainers e2e tests and a manual run.
    - **Carried over:** S3 storage; WebP/AVIF copies (Next.js converts in production for now); a cleanup job for files no row points to; non-image files (PDFs).
 6. **Data migration script.** Run it against a copy of production `data.db`.
+   - ✅ Done (2026-11-10): `npm run import:strapi` (`src/strapi-import/`): published content, media and files, customers with their password hashes, orders and contact messages, in one transaction checked against Strapi before it commits; `--dry-run` and `--replace`. Run against the local copy of `data.db` into the dev database. Covered by unit tests and a Testcontainers e2e test with a Strapi-shaped SQLite fixture.
 7. **AdminJS.** CRUD resources first, then auth, then the section editor (JSON first, then per-type forms), then the dashboard.
    - From phase 5: the upload field and a media picker call `MediaService` (never write files directly). A blocked editor keeps API access until the access token expires (≤ 15 min, phase 3 D3), as every account does.
    - From phase 4: order status changes go through `canTransition()`; mark contact messages handled; the dashboard shows new orders and unhandled messages.
@@ -203,7 +205,7 @@ This is a one-off script. It reads `backend/.tmp/data.db` with better-sqlite3 an
    - **Mail (from phase 4):** a production SMTP provider (`SMTP_*`; `requireTLS` is on in production unless `SMTP_SECURE`), **SPF, DKIM and DMARC** for the `MAIL_FROM` domain or the mail lands in spam, and an https `FRONTEND_URL`.
    - **Before going live (from phase 3):** set `TRUST_PROXY_HOPS` to the number of proxies in front of the API, and make every proxy (nginx and the Next route handlers) forward `X-Forwarded-For`. Until then register and refresh limits count the whole site as one client. Generate a production `JWT_ACCESS_SECRET` (`openssl rand -base64 48`).
    - Rate-limit counters live in memory, per process: switch the throttler to Redis storage before running more than one API instance. Once real client IPs arrive, consider a looser per-IP login cap on top of the per-account one (password spraying).
-   - Freeze Strapi edits, run the migration, smoke-test, and switch over.
+   - Freeze Strapi edits, then run the import from the production image (`node dist/strapi-import/import-strapi.js --sqlite … --uploads …` with the SQLite file and Strapi's uploads mounted read-only, and the uploads volume): `--dry-run` first, then for real into the empty production database. Smoke-test and switch over.
    - Keep Strapi and the SQLite file for rollback for about 2 weeks.
    - Set up nightly `pg_dump` backups.
 
