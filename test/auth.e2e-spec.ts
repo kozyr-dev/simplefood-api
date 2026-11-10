@@ -149,6 +149,7 @@ describe('Auth (e2e)', () => {
           id: expect.stringMatching(/^[0-9a-f-]{36}$/),
           username: 'Ivan Petrenko',
           email: 'Ivan@Example.com',
+          emailVerified: false,
           phone: '+380 67 123 45 67',
           address: null,
           role: 'customer',

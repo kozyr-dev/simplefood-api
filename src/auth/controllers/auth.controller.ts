@@ -34,6 +34,7 @@ import { RefreshTokenDto } from '../dto/refresh-token.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { RegisterDto } from '../dto/register.dto';
 import { ResetPasswordDto } from '../dto/reset-password.dto';
+import { VerifyEmailDto } from '../dto/verify-email.dto';
 import { AuthThrottlerGuard } from '../guards/auth-throttler.guard';
 import { AuthService } from '../services/auth.service';
 import type { AuthUser } from '../types/auth.types';
@@ -125,7 +126,10 @@ export class AuthController {
     await this.auth.logout(refreshToken);
   }
 
-  /** Changes the password and ends every other session. */
+  /**
+   * Changes the password and ends every other session. A notice goes to
+   * the account's email.
+   */
   @Post('change-password')
   // Per account (see AuthThrottlerGuard): it checks the current password.
   @Throttle({ default: { limit: 5, ttl: minutes(1) } })
@@ -166,7 +170,8 @@ export class AuthController {
 
   /**
    * Sets a new password with the token from the reset link. Every session
-   * ends; the user then logs in with the new password.
+   * ends; the user then logs in with the new password. A notice goes to the
+   * account's email.
    */
   @Public()
   @Post('reset-password')
@@ -183,5 +188,42 @@ export class AuthController {
   })
   async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
     await this.auth.resetPassword(dto);
+  }
+
+  /**
+   * Marks the email verified with the token from the verification link
+   * (valid for 48 hours). No login needed: the link may be opened on
+   * another device.
+   */
+  @Public()
+  @Post('verify-email')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Throttle({ default: { limit: 10, ttl: hours(1) } })
+  @ApiNoContentResponse({ description: 'The email is verified.' })
+  @ApiBadRequestResponse({
+    type: ErrorResponseDto,
+    description:
+      'Validation failed, or the link is unknown, used, expired, replaced ' +
+      'by a newer one, or for an address the account no longer has ' +
+      '(`INVALID_TOKEN`).',
+  })
+  async verifyEmail(@Body() { token }: VerifyEmailDto): Promise<void> {
+    await this.auth.verifyEmail(token);
+  }
+
+  /**
+   * Emails a new verification link to the caller's address; earlier links
+   * stop working. Nothing is sent if the email is already verified.
+   */
+  @Post('resend-verification')
+  // Per account (see AuthThrottlerGuard).
+  @Throttle({ default: { limit: 3, ttl: hours(1) } })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiAuth()
+  @ApiNoContentResponse({
+    description: 'A link is on its way, unless the email is already verified.',
+  })
+  async resendVerification(@CurrentUser() user: AuthUser): Promise<void> {
+    await this.auth.resendVerification(user);
   }
 }

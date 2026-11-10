@@ -41,8 +41,9 @@ export class UsersController {
 
   /**
    * Changes the fields sent; `null` clears `phone` or `address`. Changing
-   * the email needs `currentPassword`. Rate limited per account, since it
-   * can check the password.
+   * the email needs `currentPassword`; the new address is unverified until
+   * its link (emailed) is opened, and the old one gets a notice. Rate
+   * limited per account, since it can check the password.
    */
   @Patch('me')
   @UseGuards(AuthThrottlerGuard)

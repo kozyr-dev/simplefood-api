@@ -230,6 +230,32 @@ describe('Logging and request IDs (e2e)', () => {
       }
     });
 
+    it('never logs a verification token, the email or the password', async () => {
+      const dataSource = app.get(DataSource);
+      await resetDatabase(dataSource);
+      resetRateLimits(app);
+      const email = 'olena@example.com';
+      const password = 'olena secret pass';
+
+      await http()
+        .post('/api/auth/register')
+        .send({ username: 'Olena', email, password })
+        .expect(201);
+      const token = linkToken((await mailbox(app)).sent.at(-1));
+      const verify = () =>
+        http().post('/api/auth/verify-email').send({ token });
+      await verify().expect(204);
+      await verify().expect(400); // a warn line, with the request
+
+      expect(
+        lines.filter((line) => line.req?.url === '/api/auth/verify-email'),
+      ).toHaveLength(2);
+      const logged = JSON.stringify(lines);
+      for (const secret of [token, email, password]) {
+        expect(logged).not.toContain(secret);
+      }
+    });
+
     it('does not log health-check requests', async () => {
       await http().get('/health');
 

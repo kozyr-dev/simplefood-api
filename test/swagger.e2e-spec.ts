@@ -258,7 +258,7 @@ describe('Swagger (e2e)', () => {
             'Users_getMe',
           ]),
         );
-        expect(routes.filter(needsLogin)).toHaveLength(4);
+        expect(routes.filter(needsLogin)).toHaveLength(5);
         expect(
           routes
             .filter((route) => route.optionalAuth)
@@ -315,7 +315,9 @@ describe('Swagger (e2e)', () => {
           'Auth_logout',
           'Auth_refresh',
           'Auth_register',
+          'Auth_resendVerification',
           'Auth_resetPassword',
+          'Auth_verifyEmail',
           'Contact_submit',
           'Orders_create',
           'Users_updateMe',
@@ -343,6 +345,8 @@ describe('Swagger (e2e)', () => {
         ['Contact_submit', ['204', '429']],
         ['Auth_forgotPassword', ['204', '429']],
         ['Auth_resetPassword', ['204', '400', '429']],
+        ['Auth_verifyEmail', ['204', '400', '429']],
+        ['Auth_resendVerification', ['204', '401', '429']],
       ])('%s documents its own responses: %j', (operationId, statuses) => {
         const { responses } = operationOf(operationId);
 
@@ -384,6 +388,8 @@ describe('Swagger (e2e)', () => {
         'Auth_logout',
         'Auth_forgotPassword',
         'Auth_resetPassword',
+        'Auth_verifyEmail',
+        'Auth_resendVerification',
         'Contact_submit',
       ])('has no body for the 204 of %s', (operationId) => {
         expect(operationOf(operationId).responses['204']).toEqual({

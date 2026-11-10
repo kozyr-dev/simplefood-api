@@ -7,6 +7,8 @@ export function toUserDto(user: User): UserDto {
     id: user.id,
     username: user.username,
     email: user.email,
+    // Boolean(): a User built in code may not have the column set at all.
+    emailVerified: Boolean(user.emailVerifiedAt),
     phone: user.phone,
     address: user.address,
     role: user.role,

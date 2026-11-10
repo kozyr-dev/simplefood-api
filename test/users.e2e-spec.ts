@@ -1,8 +1,7 @@
 import { INestApplication } from '@nestjs/common';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { DataSource, QueryFailedError, type Repository } from 'typeorm';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import type { UserDto } from '@/users/dto/user.dto';
 import { User, UserRole } from '@/users/entities/user.entity';
 import { bearer, loginAs } from './utils/auth';
@@ -73,6 +72,7 @@ describe('Users (e2e)', () => {
           id: user.id,
           username: 'Ivan Petrenko',
           email: 'ivan@example.com',
+          emailVerified: false,
           phone: '+380 67 123 45 67',
           address: 'Kyiv, Khreshchatyk St, 1',
           role: 'customer',
@@ -312,9 +312,8 @@ describe('Users (e2e)', () => {
       ['another kind of violation', pgError('23514', 'CHK_app_user_email')],
       ['a duplicate on another unique index', pgError('23505', 'UQ_other')],
     ])('answers %s with a generic 500, never a 409', async (_, error) => {
-      jest
-        .spyOn(app.get<Repository<User>>(getRepositoryToken(User)), 'update')
-        .mockRejectedValueOnce(error);
+      // The update runs on the transaction's repository, not the injected one.
+      jest.spyOn(Repository.prototype, 'update').mockRejectedValueOnce(error);
 
       const res = await patchMe({ username: 'Renamed' }).expect(500);
 

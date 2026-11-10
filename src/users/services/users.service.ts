@@ -14,8 +14,12 @@ import {
 } from 'typeorm';
 import type { UpdateMeDto } from '../dto/update-me.dto';
 import type { UserDto } from '../dto/user.dto';
+import { AccountTokenPurpose } from '../entities/account-token.entity';
+import { sameEmail } from '../entities/email';
 import { User } from '../entities/user.entity';
 import { toUserDto } from '../mappers/user.mapper';
+import { AccountEmailsService } from './account-emails.service';
+import { AccountTokensService } from './account-tokens.service';
 import { PasswordService } from './password.service';
 
 export interface NewUser {
@@ -56,12 +60,17 @@ export function wrongPassword(): BadRequestException {
   });
 }
 
-/** User accounts and the caller's own profile. Knows nothing about tokens. */
+/**
+ * User accounts and the caller's own profile. Knows nothing about sessions
+ * (AuthModule's tokens); a new email gets a verification link from here.
+ */
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     private readonly passwords: PasswordService,
+    private readonly accountTokens: AccountTokensService,
+    private readonly accountEmails: AccountEmailsService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -86,15 +95,20 @@ export class UsersService {
    * Changes the fields sent. A new email needs the current password; a sent
    * `currentPassword` is checked either way. A taken email or username is a
    * 409, as at registration.
+   *
+   * A new address is unverified: after the commit it gets a verification
+   * link, and the old address a notice. A change of letter case only is the
+   * same address (citext): it stays verified, and nothing is sent.
    */
   async updateProfile(
     id: string,
     { currentPassword, ...changes }: UpdateMeDto,
   ): Promise<UserDto> {
     const user = await this.findActiveWithPassword(id);
+    const oldEmail = user.email;
 
     const emailChanges =
-      changes.email !== undefined && changes.email !== user.email;
+      changes.email !== undefined && changes.email !== oldEmail;
     if (emailChanges && currentPassword === undefined) {
       throw new BadRequestException({
         message: 'Changing the email requires currentPassword',
@@ -110,14 +124,39 @@ export class UsersService {
 
     // `changes` holds only the keys sent. Nothing sent, nothing written: an
     // empty update would still bump updated_at.
-    if (Object.keys(changes).length) {
-      try {
-        await this.users.update(id, changes);
-      } catch (error) {
-        throw toConflict(error) ?? error;
-      }
+    if (!Object.keys(changes).length) {
+      return toUserDto(user);
     }
-    return toUserDto(Object.assign(user, changes));
+    const newEmail =
+      changes.email !== undefined && !sameEmail(changes.email, oldEmail)
+        ? changes.email
+        : null;
+    const update: Partial<User> = newEmail
+      ? { ...changes, emailVerifiedAt: null }
+      : changes;
+
+    const verificationToken = await this.dataSource.transaction(
+      async (manager) => {
+        try {
+          await manager.getRepository(User).update(id, update);
+        } catch (error) {
+          throw toConflict(error) ?? error;
+        }
+        return newEmail
+          ? this.accountTokens.issue(
+              { id, email: newEmail },
+              AccountTokenPurpose.EmailVerification,
+              manager,
+            )
+          : null;
+      },
+    );
+
+    if (newEmail && verificationToken) {
+      this.accountEmails.emailVerification(newEmail, verificationToken);
+      this.accountEmails.emailChanged(oldEmail);
+    }
+    return toUserDto(Object.assign(user, update));
   }
 
   /**
@@ -158,7 +197,7 @@ export class UsersService {
     const repository = manager.getRepository(User);
     try {
       const user = await repository.save(
-        repository.create({ phone: null, ...data }),
+        repository.create({ phone: null, emailVerifiedAt: null, ...data }),
       );
       delete user.passwordHash;
       return user;

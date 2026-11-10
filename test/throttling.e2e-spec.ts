@@ -142,6 +142,13 @@ describe('Rate limits (e2e)', () => {
       '/api/auth/reset-password',
       { token: 'x' },
     ],
+    [
+      'POST /auth/verify-email',
+      10,
+      3600,
+      '/api/auth/verify-email',
+      { token: 'x' },
+    ],
     // A guest: no token, so counted by IP (the browser calls the API directly).
     ['POST /orders (guest)', 10, 3600, '/api/orders', {}],
   ])(
@@ -223,6 +230,23 @@ describe('Rate limits (e2e)', () => {
     expect(retryAfter).toBeGreaterThan(3595);
     expect(retryAfter).toBeLessThanOrEqual(3600);
     await forgot('olena@example.com').expect(204);
+  });
+
+  it('POST /auth/resend-verification: 3 per hour per account; other accounts on the same IP are unaffected', async () => {
+    const resend = (token: string) =>
+      http().post('/api/auth/resend-verification').set(bearer(token));
+    const { accessToken } = await loginAs(app, user);
+    const other = (await loginAs(app, await createUser(dataSource)))
+      .accessToken;
+
+    expect(await statuses(3, () => resend(accessToken))).toEqual([
+      204, 204, 204,
+    ]);
+
+    const retryAfter = retryAfterOf(await resend(accessToken));
+    expect(retryAfter).toBeGreaterThan(3595);
+    expect(retryAfter).toBeLessThanOrEqual(3600);
+    await resend(other).expect(204);
   });
 
   it('ignores a forged X-Forwarded-For (TRUST_PROXY_HOPS=0)', async () => {

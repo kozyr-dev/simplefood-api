@@ -1,15 +1,14 @@
 import {
   BadRequestException,
   ForbiddenException,
-  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import mailConfig, { type MailConfig } from '@/config/mail.config';
 import { MailService } from '@/mail/services/mail.service';
 import { AccountTokenPurpose } from '@/users/entities/account-token.entity';
 import { toUserDto } from '@/users/mappers/user.mapper';
+import { AccountEmailsService } from '@/users/services/account-emails.service';
 import { AccountTokensService } from '@/users/services/account-tokens.service';
 import {
   PASSWORD_MAX_BYTES,
@@ -17,10 +16,6 @@ import {
 } from '@/users/services/password.service';
 import { UsersService, wrongPassword } from '@/users/services/users.service';
 import type { User } from '@/users/entities/user.entity';
-import {
-  accountLink,
-  passwordResetEmail,
-} from '@/users/templates/account-emails';
 import type { AuthResultDto } from '../dto/auth-result.dto';
 import type { AuthTokensDto } from '../dto/auth-tokens.dto';
 import type { ChangePasswordDto } from '../dto/change-password.dto';
@@ -43,9 +38,9 @@ function invalidCredentials(): UnauthorizedException {
 }
 
 /**
- * A reset link that can't be used: unknown, used, expired, replaced by a
- * newer one, or its account changed email or was blocked. One answer for
- * all; 400, not 401 (D13).
+ * A reset or verification link that can't be used: unknown, used, expired,
+ * replaced by a newer one, or its account changed email or was blocked. One
+ * answer for all; 400, not 401 (D13).
  */
 function invalidToken(): BadRequestException {
   return new BadRequestException({
@@ -66,12 +61,15 @@ export class AuthService {
     private readonly accessTokens: AccessTokensService,
     private readonly refreshTokens: RefreshTokensService,
     private readonly accountTokens: AccountTokensService,
+    private readonly accountEmails: AccountEmailsService,
     private readonly mail: MailService,
-    @Inject(mailConfig.KEY) private readonly mailSettings: MailConfig,
     private readonly dataSource: DataSource,
   ) {}
 
-  /** Creates a customer and logs them in. 409 for a taken email/username. */
+  /**
+   * Creates a customer and logs them in; a verification link goes to the
+   * email after the commit. 409 for a taken email/username.
+   */
   async register({
     username,
     email,
@@ -79,17 +77,29 @@ export class AuthService {
     phone,
   }: RegisterDto): Promise<AuthResultDto> {
     const passwordHash = await this.passwords.hash(password);
-    // One transaction: no account is left behind if issuing the session fails.
-    return this.dataSource.transaction(async (manager) => {
-      const user = await this.users.create(
-        { username, email, passwordHash, phone: phone ?? null },
-        manager,
-      );
-      return this.result(
-        user,
-        await this.refreshTokens.issue(user.id, manager),
-      );
-    });
+    // One transaction: no account is left behind if issuing the session or
+    // the verification token fails.
+    const { user, result, verificationToken } =
+      await this.dataSource.transaction(async (manager) => {
+        const created = await this.users.create(
+          { username, email, passwordHash, phone: phone ?? null },
+          manager,
+        );
+        return {
+          user: created,
+          result: await this.result(
+            created,
+            await this.refreshTokens.issue(created.id, manager),
+          ),
+          verificationToken: await this.accountTokens.issue(
+            created,
+            AccountTokenPurpose.EmailVerification,
+            manager,
+          ),
+        };
+      });
+    this.accountEmails.emailVerification(user.email, verificationToken);
+    return result;
   }
 
   async login({ identifier, password }: LoginDto): Promise<AuthResultDto> {
@@ -152,7 +162,7 @@ export class AuthService {
     }
 
     const passwordHash = await this.passwords.hash(newPassword);
-    return this.dataSource.transaction(async (manager) => {
+    const result = await this.dataSource.transaction(async (manager) => {
       await this.users.setPassword(user.id, passwordHash, manager);
       await this.refreshTokens.revokeAllForUser(user.id, manager);
       return this.result(
@@ -160,6 +170,8 @@ export class AuthService {
         await this.refreshTokens.issue(user.id, manager),
       );
     });
+    this.accountEmails.passwordChanged(user.email);
+    return result;
   }
 
   /**
@@ -179,12 +191,7 @@ export class AuthService {
         AccountTokenPurpose.PasswordReset,
       );
       // To the stored address, in its stored case, not the one typed.
-      this.mail.send('password-reset', {
-        to: user.email,
-        ...passwordResetEmail(
-          accountLink(this.mailSettings.frontendUrl, '/reset-password', token),
-        ),
-      });
+      this.accountEmails.passwordReset(user.email, token);
     });
   }
 
@@ -193,23 +200,60 @@ export class AuthService {
    * used up, every session ends (a thief's too), and the email counts as
    * verified (the link proved the mailbox). Doesn't log in (OWASP): the
    * client sends the user to the login form. Access tokens already issued
-   * stay valid until they expire (D3).
+   * stay valid until they expire (D3). A notice follows, as after a change.
    */
   async resetPassword({ token, newPassword }: ResetPasswordDto): Promise<void> {
     const passwordHash = await this.passwords.hash(newPassword);
+    const user = await this.dataSource.transaction(async (manager) => {
+      const owner = await this.accountTokens.consume(
+        token,
+        AccountTokenPurpose.PasswordReset,
+        manager,
+      );
+      if (!owner) {
+        throw invalidToken();
+      }
+      await this.users.setPassword(owner.id, passwordHash, manager);
+      await this.users.markEmailVerified(owner.id, manager);
+      await this.refreshTokens.revokeAllForUser(owner.id, manager);
+      return owner;
+    });
+    this.accountEmails.passwordChanged(user.email);
+  }
+
+  /**
+   * Marks the email verified with the token from a verification link. No
+   * login needed: the link may be opened on another device.
+   */
+  async verifyEmail(token: string): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const user = await this.accountTokens.consume(
         token,
-        AccountTokenPurpose.PasswordReset,
+        AccountTokenPurpose.EmailVerification,
         manager,
       );
       if (!user) {
         throw invalidToken();
       }
-      await this.users.setPassword(user.id, passwordHash, manager);
       await this.users.markEmailVerified(user.id, manager);
-      await this.refreshTokens.revokeAllForUser(user.id, manager);
     });
+  }
+
+  /**
+   * A new verification link for the caller's email, cancelling earlier
+   * ones. Nothing is sent once the email is verified; the answer is the
+   * same either way. 401 if the account was deleted or blocked meanwhile.
+   */
+  async resendVerification(caller: AuthUser): Promise<void> {
+    const user = await this.users.findActive(caller.id);
+    if (user.emailVerifiedAt) {
+      return;
+    }
+    const token = await this.accountTokens.issue(
+      user,
+      AccountTokenPurpose.EmailVerification,
+    );
+    this.accountEmails.emailVerification(user.email, token);
   }
 
   private async tokens(

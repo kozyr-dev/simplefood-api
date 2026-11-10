@@ -12,6 +12,7 @@ describe('toUserDto', () => {
     address: null,
     role: UserRole.Customer,
     blocked: false,
+    emailVerifiedAt: null,
     createdAt,
     updatedAt: new Date(),
   });
@@ -21,10 +22,18 @@ describe('toUserDto', () => {
       id: 'user-1',
       username: 'Ivan',
       email: 'ivan@example.com',
+      emailVerified: false,
       phone: '+380671234567',
       address: null,
       role: 'customer',
       createdAt,
     });
+  });
+
+  it('reports the email verified once emailVerifiedAt is set', () => {
+    const verified = Object.assign(new User(), user, {
+      emailVerifiedAt: new Date('2026-10-02T10:00:00Z'),
+    });
+    expect(toUserDto(verified).emailVerified).toBe(true);
   });
 });

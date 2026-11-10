@@ -11,6 +11,13 @@ export class UserDto {
   /** @example "ivan@example.com" */
   email: string;
 
+  /**
+   * Whether the owner opened a verification (or password-reset) link sent
+   * to `email`. A new email starts unverified. Nothing requires it yet.
+   * @example true
+   */
+  emailVerified: boolean;
+
   /** @example "+380 67 123 45 67" */
   phone: string | null;
 

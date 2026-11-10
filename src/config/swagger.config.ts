@@ -56,8 +56,8 @@ export function buildSwaggerDocumentConfig() {
       .addTag(
         'auth',
         'Accounts and sessions: register, log in, refresh, log out, change ' +
-          'or reset a forgotten password. Each refresh token works once: ' +
-          'store the new one.',
+          'or reset a forgotten password, verify the email. Each refresh ' +
+          'token works once: store the new one.',
       )
       .addTag('users', "The logged-in user's own account.")
       .addTag(

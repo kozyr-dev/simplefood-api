@@ -135,8 +135,8 @@ src/
   database/         TypeORM CLI data source, naming strategy, SQL logger (never logs parameters),
                     entities/ (base entity, Seo), migrations/
   auth/             sessions and access control: POST /api/auth/register, /login, /refresh,
-                    /logout, /change-password, /forgot-password, /reset-password; the global
-                    JwtAuthGuard and RolesGuard,
+                    /logout, /change-password, /forgot-password, /reset-password,
+                    /verify-email, /resend-verification; the global JwtAuthGuard and RolesGuard,
                     @Public(), @OptionalAuth(), @Roles(), @CurrentUser(), AuthThrottlerGuard
                     with @ThrottleBy()
   users/            accounts (User entity, PasswordService), single-use links sent by email
@@ -219,6 +219,13 @@ docs/               migration plan
 
 - **Validation:** request DTOs use `class-validator`. Unknown properties are rejected, there's no implicit type conversion, and strings are trimmed (except fields whose name contains `password`).
 - **Request IDs:** every response has an `X-Request-Id` header, and every log line of that request has the same `reqId`. A safe incoming `X-Request-Id` is reused.
+- **Sending email:**
+  - always through `MailService` (`send()`, or `defer()` for background work that may send), never a transport directly
+  - **after the transaction commits**, so nothing is announced that was rolled back; issue any token for a link _inside_ the transaction
+  - each module keeps its emails in its own `templates/` folder, built with the helpers in [src/mail/templates/format.ts](src/mail/templates/format.ts)
+  - **escape everything a user typed** (`escapeHtml()`), and **never put user input in a subject** (header injection, spoofed subjects)
+  - links carry tokens in the fragment (`#token=…`), built with `accountLink()`, so they stay out of server logs and `Referer` headers
+  - never log a recipient, a subject or a body: `MailService` logs only a label (`Mail "order-customer" sent`) and SMTP error codes
 - **Logging:** use `new Logger(MyClass.name)` from `@nestjs/common`; it goes through pino automatically. The `Authorization`, `Cookie` and `Set-Cookie` headers are redacted, and SQL is logged without its parameters (they can hold emails and password hashes). Never log request bodies, tokens or hashes.
 
 ## CI

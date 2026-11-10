@@ -5,6 +5,7 @@ import {
   AccountToken,
   AccountTokenPurpose,
 } from '../entities/account-token.entity';
+import { sameEmail } from '../entities/email';
 import type { User } from '../entities/user.entity';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -95,9 +96,4 @@ export class AccountTokensService {
     );
     return affected ? stored.user : null;
   }
-}
-
-/** Both columns are citext: compared regardless of case, as Postgres would. */
-function sameEmail(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
 }
