@@ -1,7 +1,7 @@
 import { Check, Column, Entity } from 'typeorm';
 import { AppBaseEntity } from '@/database/entities/base.entity';
 
-/** One resized variant of an image (generated on upload, phase 5). */
+/** One resized variant of an image, made on upload (services/image-processing.ts). */
 export interface MediaFormat {
   url: string;
   width: number;
@@ -14,9 +14,9 @@ export type MediaFormats = Partial<
 >;
 
 /**
- * An uploaded file (product photos, blog images, page section images).
- * Read side only for now: uploads come in phase 5, and the existing files
- * arrive with the Strapi data migration in phase 6.
+ * An uploaded image (product photos, blog images, page section images).
+ * Created by MediaService (POST /api/media, later AdminJS); the existing
+ * Strapi files arrive with the data migration in phase 6.
  */
 // Named constraints: a violation then reads `violates check constraint
 // "CHK_media_size_non_negative"`, not a generated hash.
@@ -25,9 +25,16 @@ export type MediaFormats = Partial<
 @Check('CHK_media_width_positive', '"width" IS NULL OR "width" > 0')
 @Check('CHK_media_height_positive', '"height" IS NULL OR "height" > 0')
 export class Media extends AppBaseEntity {
-  /** Relative path, e.g. `/uploads/borscht_3f9a.jpg` (absolute URLs: phase 5). */
+  /**
+   * Relative to the API origin, e.g. `/uploads/borscht_3f9a.jpg`: the same
+   * on any domain, and the frontend prefixes its API address.
+   */
   @Column({ type: 'text' })
   url: string;
+
+  /** The uploader's file name, for finding it in the admin; never used on disk. */
+  @Column({ type: 'varchar', length: 255 })
+  name: string;
 
   /** MIME type, e.g. `image/jpeg`. */
   @Column({ type: 'varchar', length: 100 })

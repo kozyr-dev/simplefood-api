@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { DataSource } from 'typeorm';
-import type { User } from '@/users/entities/user.entity';
+import { UserRole, type User } from '@/users/entities/user.entity';
 import { bearer, loginAs } from './utils/auth';
 import { resetDatabase } from './utils/database';
 import { createUser, TEST_PASSWORD } from './utils/factories';
@@ -230,6 +230,29 @@ describe('Rate limits (e2e)', () => {
     expect(retryAfter).toBeGreaterThan(3595);
     expect(retryAfter).toBeLessThanOrEqual(3600);
     await forgot('olena@example.com').expect(204);
+  });
+
+  it('POST /media: 100 per hour per account; other editors on the same IP are unaffected', async () => {
+    const editor = await createUser(dataSource, { role: UserRole.Editor });
+    const { accessToken } = await loginAs(app, editor);
+    const other = (
+      await loginAs(
+        app,
+        await createUser(dataSource, { role: UserRole.Editor }),
+      )
+    ).accessToken;
+    // No file: a quick 400, counted all the same.
+    const upload = (token: string) =>
+      http().post('/api/media').set(bearer(token));
+
+    expect(await statuses(100, () => upload(accessToken))).toEqual(
+      Array<number>(100).fill(400),
+    );
+
+    const retryAfter = retryAfterOf(await upload(accessToken));
+    expect(retryAfter).toBeGreaterThan(3595);
+    expect(retryAfter).toBeLessThanOrEqual(3600);
+    await upload(other).expect(400);
   });
 
   it('POST /auth/resend-verification: 3 per hour per account; other accounts on the same IP are unaffected', async () => {

@@ -94,6 +94,10 @@ const validationSchema = Joi.object({
       // oxlint-disable-next-line unicorn/no-thenable
       then: Joi.string().uri({ scheme: ['https'] }),
     }),
+  // Read by the `media` namespace in config/media.config.ts: where uploaded
+  // images are stored and served from (/uploads). Relative to the working
+  // directory; in Docker, mount a volume here or uploads die with the container.
+  UPLOADS_DIR: Joi.string().default('uploads'),
 }).and('SMTP_USER', 'SMTP_PASSWORD');
 
 export default validationSchema;

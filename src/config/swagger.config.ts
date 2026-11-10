@@ -66,6 +66,11 @@ export function buildSwaggerDocumentConfig() {
           "logged-in customer's order history.",
       )
       .addTag('contact', "The site's contact form.")
+      .addTag(
+        'media',
+        'Uploading images (editors and admins). The files are served at ' +
+          '/uploads, outside the /api prefix.',
+      )
       // Routes that need a login say so with ApiAuth() (common/http).
       .addBearerAuth({
         type: 'http',

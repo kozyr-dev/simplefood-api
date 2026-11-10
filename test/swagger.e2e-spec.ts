@@ -12,6 +12,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { IsOptionalAuth } from '@/auth/decorators/optional-auth.decorator';
 import { IsPublic } from '@/auth/decorators/public.decorator';
+import { RequiredRoles } from '@/auth/decorators/roles.decorator';
 import { AuthThrottlerGuard } from '@/auth/guards/auth-throttler.guard';
 import { readApiVersion } from '@/config/swagger.config';
 import { createTestApp } from './utils/test-app';
@@ -43,6 +44,8 @@ interface Route {
   /** `@OptionalAuth()`: a guest or a valid token. */
   optionalAuth: boolean;
   rateLimited: boolean;
+  /** `@Roles(...)`: other logged-in users get a 403. */
+  roles: string[] | undefined;
 }
 
 /**
@@ -83,6 +86,10 @@ function routesOf(app: INestApplication): Route[] {
               ...guardsOf(controller),
               ...guardsOf(handler),
             ].includes(AuthThrottlerGuard),
+            roles: reflector.getAllAndOverride(RequiredRoles, [
+              handler,
+              controller,
+            ]),
           };
         });
     });
@@ -184,6 +191,7 @@ describe('Swagger (e2e)', () => {
           'users',
           'orders',
           'contact',
+          'media',
         ]);
         for (const tag of document.tags ?? []) {
           expect(tag.description).toEqual(expect.any(String));
@@ -258,7 +266,7 @@ describe('Swagger (e2e)', () => {
             'Users_getMe',
           ]),
         );
-        expect(routes.filter(needsLogin)).toHaveLength(5);
+        expect(routes.filter(needsLogin)).toHaveLength(8);
         expect(
           routes
             .filter((route) => route.optionalAuth)
@@ -319,6 +327,7 @@ describe('Swagger (e2e)', () => {
           'Auth_resetPassword',
           'Auth_verifyEmail',
           'Contact_submit',
+          'Media_upload',
           'Orders_create',
           'Users_updateMe',
         ]);
@@ -347,6 +356,9 @@ describe('Swagger (e2e)', () => {
         ['Auth_resetPassword', ['204', '400', '429']],
         ['Auth_verifyEmail', ['204', '400', '429']],
         ['Auth_resendVerification', ['204', '401', '429']],
+        ['Media_upload', ['201', '400', '401', '403', '413', '415', '429']],
+        ['Media_update', ['200', '401', '403', '404']],
+        ['Media_remove', ['204', '401', '403', '404']],
       ])('%s documents its own responses: %j', (operationId, statuses) => {
         const { responses } = operationOf(operationId);
 
@@ -369,6 +381,8 @@ describe('Swagger (e2e)', () => {
         ['Users_getMe', '200', 'UserDto'],
         ['Users_updateMe', '200', 'UserDto'],
         ['Orders_create', '201', 'OrderDto'],
+        ['Media_upload', '201', 'MediaDto'],
+        ['Media_update', '200', 'MediaDto'],
       ])('%s answers %s with { data: %s }', (operationId, status, model) => {
         expect(operationOf(operationId).responses[status]).toMatchObject({
           content: {
@@ -391,9 +405,38 @@ describe('Swagger (e2e)', () => {
         'Auth_verifyEmail',
         'Auth_resendVerification',
         'Contact_submit',
+        'Media_remove',
       ])('has no body for the 204 of %s', (operationId) => {
         expect(operationOf(operationId).responses['204']).toEqual({
           description: expect.any(String),
+        });
+      });
+
+      it('documents the 403 on every route limited to roles', () => {
+        const limited = routes.filter((route) => route.roles);
+        expect(limited.map((route) => route.operationId).sort()).toEqual([
+          'Media_remove',
+          'Media_update',
+          'Media_upload',
+        ]);
+
+        for (const { operationId, roles } of limited) {
+          expect(operationOf(operationId).responses['403']).toMatchObject({
+            ...ERROR_BODY,
+            description: expect.stringContaining(roles?.join(' or ') ?? ''),
+          });
+        }
+      });
+
+      it('documents the upload as a multipart form with a binary file', () => {
+        const body = operationOf('Media_upload').requestBody as {
+          content: Record<string, { schema: object }>;
+        };
+
+        expect(Object.keys(body.content)).toEqual(['multipart/form-data']);
+        expect(body.content['multipart/form-data'].schema).toMatchObject({
+          required: ['file'],
+          properties: { file: { type: 'string', format: 'binary' } },
         });
       });
     });

@@ -1,13 +1,37 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import mediaConfig, { type MediaConfig } from '@/config/media.config';
+import { MediaController } from './controllers/media.controller';
 import { Media } from './entities/media.entity';
+import { LocalDiskStorage } from './services/local-disk-storage';
+import { MediaService } from './services/media.service';
+import { MEDIA_STORAGE } from './types/media.types';
 
 /**
- * Shares the Media repository with the modules that return media (catalog,
- * blog, pages). Upload endpoints arrive in phase 5.
+ * Uploaded images: the upload routes (/api/media, editors only),
+ * MediaService and the file storage. Shares the Media repository with the
+ * modules that return media (catalog, blog, pages). configureApp() serves
+ * the files at /uploads.
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Media])],
-  exports: [TypeOrmModule],
+  imports: [
+    ConfigModule.forFeature(mediaConfig),
+    TypeOrmModule.forFeature([Media]),
+  ],
+  controllers: [MediaController],
+  providers: [
+    {
+      provide: MEDIA_STORAGE,
+      inject: [mediaConfig.KEY],
+      useFactory: async ({ uploadsDir }: MediaConfig) => {
+        const storage = new LocalDiskStorage(uploadsDir);
+        await storage.init();
+        return storage;
+      },
+    },
+    MediaService,
+  ],
+  exports: [TypeOrmModule, MediaService],
 })
 export class MediaModule {}

@@ -2,6 +2,9 @@
 // jest-e2e.config.ts doesn't apply here: resolve it from tsconfig.json instead.
 // Must stay the first import.
 import 'tsconfig-paths/register';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -60,6 +63,9 @@ export default async function globalSetup(globalConfig: {
     MAIL_FROM: 'noreply@example.com',
     MAIL_NOTIFY_TO: 'shop@example.com',
     FRONTEND_URL: 'http://localhost:3000',
+    // A fresh folder per run (each worker gets a subfolder, see
+    // worker-database.ts); global-teardown.ts removes it.
+    TEST_UPLOADS_ROOT: await mkdtemp(join(tmpdir(), 'simplefood-e2e-uploads-')),
   });
 
   // Same options the app and the CLI use (read from the env set above).

@@ -2,6 +2,7 @@ import { applyDecorators, HttpStatus, type Type } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiExtraModels,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiResponse,
   ApiSecurity,
@@ -64,11 +65,20 @@ export function ApiDataResponse(
 
 /**
  * A route that needs a login: the bearer scheme (Swagger UI's Authorize
- * button) and the 401 JwtAuthGuard sends.
+ * button) and the 401 JwtAuthGuard sends. With `roles` (as given to
+ * `@Roles()`), also the 403 RolesGuard sends to everyone else.
  */
-export function ApiAuth() {
+export function ApiAuth({ roles }: { roles?: readonly string[] } = {}) {
   return applyDecorators(
     ApiBearerAuth(),
+    ...(roles
+      ? [
+          ApiForbiddenResponse({
+            type: ErrorResponseDto,
+            description: `Logged in, but not as ${roles.join(' or ')} (\`FORBIDDEN\`).`,
+          }),
+        ]
+      : []),
     ApiUnauthorizedResponse({
       type: ErrorResponseDto,
       description:

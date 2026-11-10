@@ -8,8 +8,11 @@ import { DataSource } from 'typeorm';
 import { Public } from '@/auth/decorators/public.decorator';
 import { REQUEST_ID_HEADER } from '@/common/logging/constants';
 import loggerConfig from '@/config/logger.config';
+import { UserRole } from '@/users/entities/user.entity';
+import { bearer, loginAs } from './utils/auth';
 import { resetDatabase } from './utils/database';
 import { createUser } from './utils/factories';
+import { testImage } from './utils/images';
 import { linkToken, mailbox } from './utils/mail';
 import { createTestApp, UUID } from './utils/test-app';
 import { resetRateLimits } from './utils/throttler';
@@ -228,6 +231,30 @@ describe('Logging and request IDs (e2e)', () => {
       for (const secret of [token, 'ivan@example.com', newPassword]) {
         expect(logged).not.toContain(secret);
       }
+    });
+
+    it('logs an upload without its file name, and no line per image served', async () => {
+      const dataSource = app.get(DataSource);
+      await resetDatabase(dataSource);
+      resetRateLimits(app);
+      const editor = await createUser(dataSource, { role: UserRole.Editor });
+      const { accessToken } = await loginAs(app, editor);
+
+      const res = await http()
+        .post('/api/media')
+        .set(bearer(accessToken))
+        .attach('file', await testImage(600, 400), 'Олена-вдома.jpg')
+        .expect(201);
+      const { url } = (res.body as { data: { url: string } }).data;
+      await http().get(url).expect(200);
+
+      expect(
+        lines.filter((line) => line.req?.url === '/api/media'),
+      ).toHaveLength(1);
+      expect(
+        lines.filter((line) => line.req?.url?.startsWith('/uploads')),
+      ).toEqual([]);
+      expect(JSON.stringify(lines)).not.toContain('Олена');
     });
 
     it('never logs a verification token, the email or the password', async () => {

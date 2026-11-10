@@ -38,6 +38,7 @@ describe('env validation schema', () => {
       TRUST_PROXY_HOPS: 0,
       SMTP_PORT: 587,
       SMTP_SECURE: false,
+      UPLOADS_DIR: 'uploads',
     });
     expect(value.LOG_LEVEL).toBeUndefined(); // logger.config picks per NODE_ENV
   });

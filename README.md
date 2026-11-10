@@ -34,12 +34,13 @@ npm run migration:run        # apply the database migrations
 npm run start:dev            # http://localhost:1339
 ```
 
-| URL                              | What                                                               |
-| -------------------------------- | ------------------------------------------------------------------ |
-| <http://localhost:1339/api>      | API (every route is under `/api`)                                  |
-| <http://localhost:1339/api/docs> | Swagger UI, when `SWAGGER_ENABLED=true` (JSON at `/api/docs-json`) |
-| <http://localhost:1339/health>   | Health check (outside `/api`; `503` when the database is down)     |
-| <http://localhost:8025>          | Mailpit: catches every email sent in development                   |
+| URL                               | What                                                               |
+| --------------------------------- | ------------------------------------------------------------------ |
+| <http://localhost:1339/api>       | API (every route is under `/api`)                                  |
+| <http://localhost:1339/api/docs>  | Swagger UI, when `SWAGGER_ENABLED=true` (JSON at `/api/docs-json`) |
+| <http://localhost:1339/health>    | Health check (outside `/api`; `503` when the database is down)     |
+| `http://localhost:1339/uploads/…` | Uploaded images (outside `/api`), from `UPLOADS_DIR`               |
+| <http://localhost:8025>           | Mailpit: catches every email sent in development                   |
 
 ## Configuration
 
@@ -67,6 +68,7 @@ The API reads these variables. They are validated at startup in [src/config/env.
 | `MAIL_FROM`                                    | **yes**  |                | Sender address, shown as "SimpleFood"                                            |
 | `MAIL_NOTIFY_TO`                               | **yes**  |                | The shop's inbox: new orders and contact messages                                |
 | `FRONTEND_URL`                                 | **yes**  |                | The site's address, for links in emails; `https` in production                   |
+| `UPLOADS_DIR`                                  | no       | `uploads`      | Folder for uploaded images (served at `/uploads`); a volume in Docker            |
 
 `POSTGRES_*` and `MAILPIT_*` in `.env` only configure Docker Compose; the API doesn't read them.
 
@@ -103,6 +105,7 @@ The migration scripts (except `create`) build first and use the TypeORM CLI entr
   - **Files that write data** call `resetDatabase(dataSource)` in `beforeEach` ([test/utils/database.ts](test/utils/database.ts)), and create rows with the factories in [test/utils/factories.ts](test/utils/factories.ts) (`createMedia(dataSource, { width: null })`). Add a factory for each new entity.
   - Get a `DataSource` with `app.get(DataSource)` in tests that boot the app, or `openTestDataSource()` in tests that only use repositories.
   - **Logged-in calls:** `createUser(dataSource, { role: UserRole.Admin })` (hashed at cost 4), then `const { accessToken } = await loginAs(app, user)` and `.set(bearer(accessToken))` ([test/utils/auth.ts](test/utils/auth.ts)). A test-only controller needs `@Public()` unless it is meant to require a login.
+  - **Uploads:** each Jest worker stores files in its own temporary folder (`UPLOADS_DIR`, removed after the run). Suites that upload call `emptyUploads(app)` in `beforeEach`, and build images with `testImage(width, height)` ([test/utils/images.ts](test/utils/images.ts)).
   - **Email:** `createTestApp()` replaces SMTP with a `FakeMailTransport`, so no test sends real mail. Mail goes out after the response: read it with `(await mailbox(app)).sent` ([test/utils/mail.ts](test/utils/mail.ts)), which waits for it, and `clear()` it in `beforeEach` when the app is shared. Do that **before** `resetDatabase()` in suites that call forgot-password: its account lookup runs in the background, and must not overlap the truncate.
   - **Rate limits** stay at their production values in tests. Files that call the limited routes call `resetRateLimits(app)` in `beforeEach` ([test/utils/throttler.ts](test/utils/throttler.ts)).
   - `test/migrations.e2e-spec.ts` checks the migrations themselves: they apply cleanly, the schema matches the entities, and every `down()` reverts.
@@ -147,7 +150,9 @@ src/
   mail/             MailService (sends in the background, after the commit), the SMTP
                     transport, shared email template helpers (templates/)
   health/           GET /health (Terminus)
-  media/            Media entity (uploaded files) and its response DTO
+  media/            uploaded images: POST /api/media, PATCH and DELETE /api/media/:id (admins and
+                    editors); MediaService (checks, processes and stores them), the storage
+                    (local disk); configureApp() serves the files at /uploads
   catalog/          products and product categories: GET /api/products, /api/products/:slug,
                     /api/product-categories
   content/          site settings, navigation menus and pages with sections: GET /api/settings,
@@ -157,7 +162,8 @@ src/
 test/
   setup/            Testcontainers global setup/teardown
   utils/            createTestApp(), resetDatabase(), factories, loginAs() + bearer(),
-                    resetRateLimits(), FakeMailTransport + mailbox()
+                    resetRateLimits(), FakeMailTransport + mailbox(), testImage() +
+                    emptyUploads()
   *.e2e-spec.ts     e2e suites
 docs/               migration plan
 ```
@@ -187,7 +193,7 @@ docs/               migration plan
   - `paths` in `tsconfig.json`; `nest build` rewrites it to relative paths in `dist/`
   - `moduleNameMapper` in both Jest configs
   - `tsconfig-paths/register` in `test/setup/global-setup.ts`, which Jest loads outside its module system
-- **Routes:** everything is under `/api`, except `/health`, which stays at the root for infrastructure probes.
+- **Routes:** everything is under `/api`, except `/health`, which stays at the root for infrastructure probes, and the uploaded files at `/uploads`.
 - **HTTP-level settings** (headers, CORS, pipes, filters) go in `configureApp()` in [src/app.setup.ts](src/app.setup.ts), so the e2e tests use exactly what production uses.
 - **Responses** are always wrapped: `{ data }` for one resource, `{ data, meta }` for a page of a list, where `meta` is `{ page, pageSize, total, pageCount }`. Lists take `?page=&pageSize=` (default 1 and 20, maximum 100). The helpers live in [src/common/http/](src/common/http/):
   - `PaginationQueryDto`: extend it for list filters
@@ -226,6 +232,11 @@ docs/               migration plan
   - **escape everything a user typed** (`escapeHtml()`), and **never put user input in a subject** (header injection, spoofed subjects)
   - links carry tokens in the fragment (`#token=…`), built with `accountLink()`, so they stay out of server logs and `Referer` headers
   - never log a recipient, a subject or a body: `MailService` logs only a label (`Mail "order-customer" sent`) and SMTP error codes
+- **Uploaded images** go through `MediaService`, which every writer uses (the upload route, the data import, AdminJS):
+  - **the type comes from the file's first bytes**, never its name or claimed type: JPEG, PNG and WebP only (no SVG: it can carry scripts)
+  - every image is **re-encoded without its metadata** (phone photos carry their GPS position), turned upright and capped at 2560 px; `large`/`medium`/`small`/`thumbnail` copies as Strapi made them
+  - stored under random names (`<22 characters>.jpg`, `small_<same>.jpg`) and served at `/uploads` with a one-year immutable cache and `Cross-Origin-Resource-Policy: cross-origin` (without it, browsers refuse to show the images on the site)
+  - URLs stay relative (`/uploads/…`); the frontend adds its API address
 - **Logging:** use `new Logger(MyClass.name)` from `@nestjs/common`; it goes through pino automatically. The `Authorization`, `Cookie` and `Set-Cookie` headers are redacted, and SQL is logged without its parameters (they can hold emails and password hashes). Never log request bodies, tokens or hashes.
 
 ## CI

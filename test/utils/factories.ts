@@ -37,6 +37,7 @@ export function createMedia(
   return repository.save(
     repository.create({
       url: `/uploads/test-${n}.jpg`,
+      name: `test-${n}.jpg`,
       mime: 'image/jpeg',
       size: 1024,
       width: 800,
