@@ -1,4 +1,4 @@
-# SimpleFood: Strapi → NestJS + PostgreSQL + TypeORM + AdminJS
+# SimpleFood: Strapi → NestJS + PostgreSQL + TypeORM + react-admin
 
 ## Context
 
@@ -23,7 +23,7 @@
 
   The page builder is the hardest of these.
 
-- **Decisions made:** a clean API (not Strapi-compatible) with the frontend's API layer adapted to it, and AdminJS for the admin. AdminJS stays behind a clean boundary, so a Refine SPA could replace it later without touching the data model.
+- **Decisions made:** a clean API (not Strapi-compatible) with the frontend's API layer adapted to it, and an admin app built with react-admin on top of admin endpoints in the API. (The first plan was AdminJS; phase 7 replaced it, see "Admin".)
 
 **Urgent, independent of the rewrite.** Production Strapi currently has these permission problems:
 
@@ -66,7 +66,8 @@ api/src/
   contact/           submissions + email notification
   media/             multer upload, sharp → thumbnail/small/medium/large, local disk /uploads (S3-ready interface)
   mail/              nodemailer (order + contact notifications)
-  admin/             AdminJS (@adminjs/nestjs, @adminjs/typeorm, @adminjs/upload)
+  <module>/controllers/admin-*.controller.ts   the admin API (/api/admin/*), in each domain module
+api/admin/           the admin app: react-admin (Vite, React), served by the API at /admin
   health/            @nestjs/terminus
 ```
 
@@ -122,13 +123,26 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 
 The OpenAPI spec comes from `@nestjs/swagger` at `/api/docs`. Optionally, generate the frontend types from it with `openapi-typescript`.
 
-## Admin (AdminJS at `/admin`)
+## Admin (react-admin at `/admin`, admin API at `/api/admin`)
 
-- **ESM interop.** AdminJS v7 is ESM-only. Load it with dynamic `import()` inside `AdminModule.createAdminAsync`, following the pattern of the official adminjs nestjs example. Do not convert the whole app to ESM.
-- **Auth.** Use `buildAuthenticatedRouter` against `User` with role `admin|editor`. Sessions are stored in Postgres via `connect-pg-simple`.
-- **Resources.** Products, categories, orders (status editable; items shown read-only), users (no password field; a "reset password" action), blog, menus (MenuItem with drag ordering by `position`), site settings (single record), contact submissions, and media (`@adminjs/upload` with a custom provider that reuses `MediaService`, so sharp variants are generated).
-- **Page sections.** Add one custom component, `SectionEditor.tsx`, registered via `ComponentLoader`, for `PageSection.data`. It switches on `type` and renders the matching form fields, plus pickers for products, media and blog categories. Ship v1 with a JSON editor and validation on save, then build the per-type forms.
-- **Dashboard.** Add a custom dashboard component with orders by status, today's orders and new contact messages.
+**Why not AdminJS** (checked 2026-11-11, with a trial run of each in a scratch copy): AdminJS had no release since 2025-07; `@adminjs/typeorm` requires TypeORM 0.3 (`ERESOLVE` against 1.1), needs Active Record entities and swallows save errors; `@adminjs/nestjs` is ESM-only with an `import`-only export, so our CommonJS build can't load it; its edit action saves whatever is posted (hidden fields included); its login doesn't regenerate the session or re-check the user; it needs `unsafe-inline` scripts, and adds ~180 MB of runtime dependencies. Refine moved to maintenance mode (2026). react-admin 5.15 (MIT, React 19, MUI 9) was active; its trial worked with our API and our strict CSP unchanged.
+
+- **D1 Architecture.** A react-admin app calling `/api/admin/*`. Every write goes through Nest controllers, DTOs, guards, throttling, logging and Swagger, so `canTransition()`, `validateSectionData()` and `MediaService` protect the admin like any client.
+- **D2 Location.** `api/admin/`, its own npm package (Vite, React, TypeScript), built to `api/admin/dist` and served by Nest at `/admin`, same origin. In development Vite (:5173) passes `/api` through to :1339.
+- **D3 Admin endpoints** live in their domain module (`catalog/controllers/admin-products.controller.ts`); shared pieces in `common/admin/`.
+- **D4 List contract:** `page`, `pageSize` (≤ 100), `sort` (allow-list, always including `id`: react-admin's reference inputs sort by it), `order`, `q`, `id` (repeatable: getMany), per-resource filters; `{data, meta}`; flat references (`imageId`, `categoryIds`).
+- **D5 Sessions** (step 7.0, done): `/api/admin/auth/login|refresh|logout`, staff only; the refresh token in an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/admin/auth` (`Secure` in production); the access token in the app's memory; same-origin `Origin` required.
+- **D6 Roles.** Editors: content, media, orders, contact messages, settings. Admins: also users. `@Roles()` on the server; `authProvider.canAccess` only hides UI. *(To confirm.)*
+- **D7 Prices** stay in kopiykas in the API; the admin's money input shows and parses hryvnias exactly.
+- **D8 Order status** through `POST /api/admin/orders/:id/status`, `canTransition()`, and a conditional update (one of two concurrent changes wins, 409). No create, edit or delete.
+- **D9 Reordering** sections and menu items: one `PUT …/order {ids}` per list, in a transaction.
+- **D10 HTML from staff is sanitized on write** (allow-list); embed codes accept only an iframe from allow-listed hosts. The site renders these fields with `dangerouslySetInnerHTML`. *(To confirm.)*
+- **D11** An audit log line per admin write (admin id, route, record id; never the body); admin responses `no-store`.
+- **D12** `disableTelemetry` (react-admin pings marmelab.com otherwise); no external scripts or fonts; the CSP is unchanged.
+- **D13** `npm run admin:create` (step 7.0, done): staff accounts from the command line; the password from a hidden prompt or `--password-stdin`, never argv or env.
+- **D14 Section editor:** v1 JSON with server validation and resolved names; v2 per-type forms, after a short trial of Puck (`@puckeditor/core`) against plain react-admin forms.
+- **D15 Tests:** API e2e for every admin endpoint; Vitest for the app's providers and inputs; a manual browser smoke script (puppeteer-core).
+- **Dashboard:** orders by status, today's and this week's orders, unhandled contact messages, the newest orders.
 
 ## Data migration (`src/strapi-import/`, `npm run import:strapi`)
 
@@ -136,7 +150,7 @@ A one-off import, compiled with the app (it uses the entities) and run from `dis
 
 - **Drafts.** Strapi 5 stores a draft and a published row per document. Take rows with `published_at IS NOT NULL` (exactly one per document in this database). Relations may point at either row: they are resolved through `document_id`.
 - **Media.** All 79 `files` rows become `Media` with the same `/uploads/<hash>.jpg` URLs; the 219 files (originals and Strapi's sizes, which match ours) are copied into `UPLOADS_DIR` as they are, nothing reprocessed. `size`: kilobytes → bytes; `formats`: url, width, height; `folder` from the upload folder's name (`Products` → `products`). **`alternative_text` is the file name on all 75 files that have one** (Strapi's default): imported as no alt text. Only the `image` field of products is read: the 28 `Image` links are Strapi 4 leftovers.
-- **Users.** The bcrypt hashes are copied as they are, so passwords keep working (upgraded to cost 12 at the next login). All 4 are customers. **Not marked verified:** Strapi had `email_confirmation` off, so it set `confirmed` on every account without checking anything. Create the admin user separately (phase 7).
+- **Users.** The bcrypt hashes are copied as they are, so passwords keep working (upgraded to cost 12 at the next login). All 4 are customers. **Not marked verified:** Strapi had `email_confirmation` off, so it set `confirmed` on every account without checking anything. Create the admin user separately: `npm run admin:create` (phase 7).
 - **Dynamic zones.** `pages_cmps` (`body`) and `homepages_cmps` (`Body`) in `order`; each component becomes a `PageSection` through `validateSectionData()`, with relations and media as the new ids; selected products keep their link order. The homepage is the page with slug `home`.
 - **Menus.** Only the fields in the current schema. The published dropdown also has 6 items under an old `MenuListItem` field, which Strapi no longer shows (two link to pages that don't exist): left out.
 - **Orders.** `dishes` → `legacyDishesText`, with no items; `amount` (hryvnias) → `subtotal` in kopiykas; all `delivery` (Strapi stored no shipping method; one without an address would become `pickup`); numbered afresh by date.
@@ -185,10 +199,11 @@ A one-off import, compiled with the app (it uses the entities) and run from `dis
    - **Carried over:** S3 storage; WebP/AVIF copies (Next.js converts in production for now); a cleanup job for files no row points to; non-image files (PDFs).
 6. **Data migration script.** Run it against a copy of production `data.db`.
    - ✅ Done (2026-11-10): `npm run import:strapi` (`src/strapi-import/`): published content, media and files, customers with their password hashes, orders and contact messages, in one transaction checked against Strapi before it commits; `--dry-run` and `--replace`. Run against the local copy of `data.db` into the dev database. Covered by unit tests and a Testcontainers e2e test with a Strapi-shaped SQLite fixture.
-7. **AdminJS.** CRUD resources first, then auth, then the section editor (JSON first, then per-type forms), then the dashboard.
+7. **Admin.** react-admin app plus admin API (see "Admin"): sessions and `create-admin` first, then the shared admin API conventions and the app skeleton, media, catalog, blog, settings and menus, orders, contact messages, users, pages and sections (JSON first, then per-type forms), the dashboard.
+   - ✅ 7.0 Done (2026-11-11): `POST /api/admin/auth/login`, `/refresh`, `/logout` (staff only, `NOT_STAFF`; refresh token in the `sf_admin_refresh` cookie; `SameOriginGuard`; same rate limits as /auth); `npm run admin:create` (create or `--promote`, hidden password prompt or `--password-stdin`). Covered by unit and Testcontainers e2e tests.
    - From phase 5: the upload field and a media picker call `MediaService` (never write files directly). A blocked editor keeps API access until the access token expires (≤ 15 min, phase 3 D3), as every account does.
    - From phase 4: order status changes go through `canTransition()`; mark contact messages handled; the dashboard shows new orders and unhandled messages.
-   - From phase 3: a `create-admin` CLI command; blocking a user calls `RefreshTokensService.revokeAllForUser` (their access token still works until it expires, at most 15 min); admin-only API routes get `@Roles()`, and `ApiAuth()` should then document their 403.
+   - From phase 3: blocking a user calls `RefreshTokensService.revokeAllForUser` (their access token still works until it expires, at most 15 min); admin-only API routes get `@Roles()`, and `ApiAuth()` should then document their 403.
 8. **Frontend adaptation** on a branch, run against the local Nest API.
    - Auth (from phase 3): see the auth items under "Frontend changes".
 9. **Cutover.**
@@ -199,6 +214,7 @@ A one-off import, compiled with the app (it uses the entities) and run from `dis
      - **Migrations:** add a `migration:run:prod` script (`typeorm migration:run -d dist/database/data-source.js`, no build) and run it as a one-off container from the same image before starting the new version.
      - **Architecture:** Apple Silicon builds `linux/arm64`. Build in CI (amd64) or with `--platform linux/amd64`, and check `uname -m` on the VPS.
      - **CI:** add a `docker` job that builds the image, starts it next to a Postgres container, waits for `healthy`, and checks `/health`. Publish to GHCR with commit-SHA tags (for rollbacks) in the deploy workflow.
+     - **Admin app (from phase 7):** the build stage also builds `admin/` (`npm ci && npm run build` there) and copies `admin/dist` next to `dist/`. The first staff account: `docker compose run --rm -it api node dist/users/cli/create-admin.js --email … --username …`.
      - **Done when:** the image is under about 250 MB; it has no dev tools, sources or `.env`; it runs as `uid=1000(node)`; it refuses to start with bad config; it turns healthy; it writes JSON logs; `docker stop` takes about a second; migrations run from the image; stack traces point to `src/*.ts`. Also look at `docker scout cves` and Docker Hardened Images.
    - Deploy Postgres and the API with Docker Compose on the VPS, behind the same `api-simplefood.kozyr.info` domain.
    - **Uploads (from phase 5):** a Docker volume for `UPLOADS_DIR` (owned by the `node` user), included in the nightly backups next to `pg_dump`. Optionally let nginx serve `/uploads` directly, with the same headers (immutable cache, `Cross-Origin-Resource-Policy: cross-origin`, `nosniff`).
@@ -214,5 +230,5 @@ A one-off import, compiled with the app (it uses the entities) and run from `dis
 - **Unit tests:** order pricing (rejects tampered prices and unavailable products), section DTO validation, refresh-token rotation and reuse detection.
 - **e2e:** Jest with supertest against Postgres via Testcontainers. Cover every public endpoint and the auth flow: login → 401 on expiry → refresh → retry. Cover ownership: user A cannot read or update user B's data or orders.
 - **Migration check:** count assertions, plus spot-checks that every product has an image and that each page's section order and types match Strapi.
-- **Frontend:** `npm test` passes. Run `npm run dev` against the local API and click through the homepage, all 9 CMS pages, a news post, register/login, account update, and checkout (verify the order and items in AdminJS), plus the contact form (verify the email in a Mailpit container).
-- **Admin:** log in at `/admin`, edit a product image (variants generated), reorder menu items, edit a page section, and check the result on the site.
+- **Frontend:** `npm test` passes. Run `npm run dev` against the local API and click through the homepage, all 9 CMS pages, a news post, register/login, account update, and checkout (verify the order and items in the admin app), plus the contact form (verify the email in a Mailpit container).
+- **Admin:** log in at `/admin` with an `admin:create` account, edit a product image (variants generated), reorder menu items, edit a page section, and check the result on the site.

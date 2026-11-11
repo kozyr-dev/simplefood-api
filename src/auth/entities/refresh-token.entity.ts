@@ -11,8 +11,8 @@ import { User } from '@/users/entities/user.entity';
  * comes back means it was copied, and the whole family is then revoked
  * (reuse detection).
  *
- * Not called "session": that's the default table of connect-pg-simple, which
- * stores the AdminJS login sessions (phase 7).
+ * The admin app's sessions are refresh tokens too (in a cookie, see
+ * AdminAuthController).
  */
 @Entity()
 @Unique('UQ_refresh_token_hash', ['tokenHash'])

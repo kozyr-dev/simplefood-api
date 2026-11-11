@@ -94,6 +94,7 @@ The API reads these variables. They are validated at startup in [src/config/env.
 | `npm run migration:create -- src/database/migrations/<Name>`    | Create an empty migration                                                    |
 | `npm run migration:run` / `migration:revert` / `migration:show` | Apply / undo the last / list migrations                                      |
 | `npm run import:strapi -- --sqlite <data.db> --uploads <dir>`   | Import the old Strapi site (see below)                                       |
+| `npm run admin:create -- --email <email> --username <name>`     | Create a staff account for the admin app (see below)                         |
 
 The migration scripts (except `create`) build first and use the TypeORM CLI entry point [src/database/data-source.ts](src/database/data-source.ts). That file loads `.env` and validates it with the same schema as the app.
 
@@ -106,6 +107,7 @@ The migration scripts (except `create`) build first and use the TypeORM CLI entr
   - **Files that write data** call `resetDatabase(dataSource)` in `beforeEach` ([test/utils/database.ts](test/utils/database.ts)), and create rows with the factories in [test/utils/factories.ts](test/utils/factories.ts) (`createMedia(dataSource, { width: null })`). Add a factory for each new entity.
   - Get a `DataSource` with `app.get(DataSource)` in tests that boot the app, or `openTestDataSource()` in tests that only use repositories.
   - **Logged-in calls:** `createUser(dataSource, { role: UserRole.Admin })` (hashed at cost 4), then `const { accessToken } = await loginAs(app, user)` and `.set(bearer(accessToken))` ([test/utils/auth.ts](test/utils/auth.ts)). A test-only controller needs `@Public()` unless it is meant to require a login.
+  - **Admin app sessions:** `const { session, cookie } = await adminLoginAs(app, editor)`, then `.set(SAME_ORIGIN).set('Cookie', cookie.header)`; `adminRefreshCookie(res)` reads the cookie a response sets or deletes.
   - **Uploads:** each Jest worker stores files in its own temporary folder (`UPLOADS_DIR`, removed after the run). Suites that upload call `emptyUploads(app)` in `beforeEach`, and build images with `testImage(width, height)` ([test/utils/images.ts](test/utils/images.ts)).
   - **Email:** `createTestApp()` replaces SMTP with a `FakeMailTransport`, so no test sends real mail. Mail goes out after the response: read it with `(await mailbox(app)).sent` ([test/utils/mail.ts](test/utils/mail.ts)), which waits for it, and `clear()` it in `beforeEach` when the app is shared. Do that **before** `resetDatabase()` in suites that call forgot-password: its account lookup runs in the background, and must not overlap the truncate.
   - **Rate limits** stay at their production values in tests. Files that call the limited routes call `resetRateLimits(app)` in `beforeEach` ([test/utils/throttler.ts](test/utils/throttler.ts)).
@@ -140,6 +142,29 @@ npm run import:strapi -- --sqlite ../backend/.tmp/data.db --uploads ../backend/p
 - **What it changes on the way:** alt texts that are just the file name become empty; accounts are not marked verified (Strapi had email confirmation off); a stale `MenuListItem` dropdown field and Strapi 4 `Image` links on products are left out.
 - It prints counts and warnings only, never names, emails or other values.
 
+## Staff accounts and the admin app
+
+Registration only ever creates customers. Staff accounts (`admin`, `editor`) come from a command, which runs from `dist/` with the same `.env`, like the migrations:
+
+```bash
+npm run admin:create -- --email olena@example.com --username "Olena"      # an admin
+npm run admin:create -- --email ivan@example.com --username "Ivan" --role editor
+npm run admin:create -- --promote someone@example.com [--role editor]     # an existing account
+npm run admin:create -- --help
+```
+
+- **The password is asked for twice, without being shown.** It is never taken from the command line or the environment (shell history, `ps`). Without a terminal (a script, CI), pipe it in: `... --password-stdin < password-file`.
+- The same rules as registration (8 characters or more, at most 72 bytes; a free email and username). A created account's email counts as verified; `--promote` changes only the role, and refuses a blocked account.
+- It prints only the outcome (`Created the admin account.`), never the email, the name or the password. Exit codes: 0 done, 1 refused or failed, 2 wrong usage.
+- In the production image: `node dist/users/cli/create-admin.js ...` (no `npm`, no build).
+
+**Admin app sessions** (`/api/admin/auth/login`, `/refresh`, `/logout`; the admin app itself comes later in phase 7):
+
+- Staff only: a customer gets `403 NOT_STAFF` (after the right password only), and a session whose account is no longer staff ends at its next refresh.
+- **The refresh token lives in a cookie**, `sf_admin_refresh`: `HttpOnly` (page scripts can't read it), `SameSite=Strict`, `Path=/api/admin/auth` (no other route receives it), `Secure` in production. The access token is in the response body, for the app to keep in memory. Each refresh replaces the cookie, with the same rotation and reuse detection as `/auth/refresh`; a refresh that fails deletes the cookie.
+- **Every request must come from a page on the API's own host:** the `Origin` header must match `Host` (`SameOriginGuard`), else `403 CROSS_ORIGIN_REQUEST`. Behind a proxy, keep the original `Host` (nginx: `proxy_set_header Host $host;`). The Vite dev server must not rewrite it either (no `changeOrigin`).
+- The same rate limits as `/auth/login` and `/auth/refresh`, counted separately.
+
 ## Project structure
 
 ```text
@@ -156,11 +181,13 @@ src/
                     entities/ (base entity, Seo), migrations/
   auth/             sessions and access control: POST /api/auth/register, /login, /refresh,
                     /logout, /change-password, /forgot-password, /reset-password,
-                    /verify-email, /resend-verification; the global JwtAuthGuard and RolesGuard,
-                    @Public(), @OptionalAuth(), @Roles(), @CurrentUser(), AuthThrottlerGuard
-                    with @ThrottleBy()
+                    /verify-email, /resend-verification; the admin app's sessions
+                    (/api/admin/auth/login, /refresh, /logout: refresh token in a cookie,
+                    SameOriginGuard); the global JwtAuthGuard and RolesGuard, @Public(),
+                    @OptionalAuth(), @Roles(), @CurrentUser(), AuthThrottlerGuard with @ThrottleBy()
   users/            accounts (User entity, PasswordService), single-use links sent by email
-                    (AccountTokensService, the account emails): GET and PATCH /api/users/me
+                    (AccountTokensService, the account emails): GET and PATCH /api/users/me;
+                    cli/: `npm run admin:create` (staff accounts)
   orders/           POST /api/orders (guests too, priced on the server), GET /api/orders/me;
                     the order emails (templates/)
   contact/          POST /api/contact: saves the message, emails the shop (honeypot against bots)
@@ -181,6 +208,7 @@ src/
 test/
   setup/            Testcontainers global setup/teardown
   utils/            createTestApp(), resetDatabase(), factories, loginAs() + bearer(),
+                    adminLoginAs() + SAME_ORIGIN + adminRefreshCookie(),
                     resetRateLimits(), FakeMailTransport + mailbox(), testImage() +
                     emptyUploads()
   *.e2e-spec.ts     e2e suites
@@ -225,6 +253,7 @@ docs/               migration plan
   - `@OptionalAuth()` serves guests and logged-in callers alike: no header means a guest, but a token that is sent must be valid (401 otherwise, so the client refreshes instead of carrying on as a guest). Read the caller with `@CurrentUser({ optional: true })`.
   - **Rate limits:** a route that checks a password, creates accounts or sends mail gets `@UseGuards(AuthThrottlerGuard)` with its own `@Throttle()`, plus `@ApiRateLimited()` for the docs. A logged-in caller is counted per account, a guest per IP; `@ThrottleBy('email')` counts a guest per IP and that body field instead (login: `identifier`). There is no global limit: every server-rendered page reaches the API from the Next server's single IP.
   - Responses that carry tokens or personal data get `@NoStore()` (`Cache-Control: no-store`).
+  - **Cookies:** the API sets one, the admin app's refresh token. A route that acts on a cookie gets `SameOriginGuard` (a browser attaches cookies to requests other sites start; the `Origin` check refuses those). The helpers in [src/common/http/cookies.ts](src/common/http/cookies.ts) read and write it; there is no cookie-parser.
 - **Entities and responses:** controllers never return entities; they map them to response DTOs (e.g. `toMediaDto()`). Primary keys are UUIDv7 from Postgres (`AppBaseEntity`).
 - **Errors** always have one shape (documented as `ErrorResponseDto` in Swagger):
 
@@ -251,7 +280,7 @@ docs/               migration plan
   - **escape everything a user typed** (`escapeHtml()`), and **never put user input in a subject** (header injection, spoofed subjects)
   - links carry tokens in the fragment (`#token=…`), built with `accountLink()`, so they stay out of server logs and `Referer` headers
   - never log a recipient, a subject or a body: `MailService` logs only a label (`Mail "order-customer" sent`) and SMTP error codes
-- **Uploaded images** go through `MediaService`, which every writer uses (the upload route, the data import, AdminJS):
+- **Uploaded images** go through `MediaService`, which every writer uses (the upload route, the data import, the admin app):
   - **the type comes from the file's first bytes**, never its name or claimed type: JPEG, PNG and WebP only (no SVG: it can carry scripts)
   - every image is **re-encoded without its metadata** (phone photos carry their GPS position), turned upright and capped at 2560 px; `large`/`medium`/`small`/`thumbnail` copies as Strapi made them
   - stored under random names (`<22 characters>.jpg`, `small_<same>.jpg`) and served at `/uploads` with a one-year immutable cache and `Cross-Origin-Resource-Policy: cross-origin` (without it, browsers refuse to show the images on the site)

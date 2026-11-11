@@ -15,7 +15,7 @@ export type MediaFormats = Partial<
 
 /**
  * An uploaded image (product photos, blog images, page section images).
- * Created by MediaService (POST /api/media, later AdminJS); the existing
+ * Created by MediaService (POST /api/media, also from the admin app); the existing
  * Strapi files arrive with the data migration in phase 6.
  */
 // Named constraints: a violation then reads `violates check constraint

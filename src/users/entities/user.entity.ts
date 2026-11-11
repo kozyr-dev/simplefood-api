@@ -7,12 +7,22 @@ export enum UserRole {
   Admin = 'admin',
 }
 
+/** The shop's staff: the roles that may sign in to the admin app. */
+export const STAFF_ROLES: readonly UserRole[] = [
+  UserRole.Admin,
+  UserRole.Editor,
+];
+
+export function isStaff(role: UserRole): boolean {
+  return STAFF_ROLES.includes(role);
+}
+
 /**
  * Not `user`: that's a reserved word in Postgres (`SELECT * FROM user`
  * returns the current database role).
  *
  * The checks repeat the DTO rules for writers that skip the DTOs (the data
- * migration, AdminJS). An email always has an `@` and a username never does,
+ * migration, the admin CLI). An email always has an `@` and a username never does,
  * so login by "email or username" can never match two different users.
  */
 @Entity('app_user')

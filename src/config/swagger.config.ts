@@ -6,6 +6,10 @@ import {
   SwaggerDocumentOptions,
   SwaggerModule,
 } from '@nestjs/swagger';
+import {
+  ADMIN_REFRESH_COOKIE,
+  ADMIN_REFRESH_SECURITY,
+} from '@/auth/types/auth.types';
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 
 /**
@@ -71,6 +75,12 @@ export function buildSwaggerDocumentConfig() {
         'Uploading images (editors and admins). The files are served at ' +
           '/uploads, outside the /api prefix.',
       )
+      .addTag(
+        'admin',
+        'The admin app (served at /admin, staff only). Its sessions keep the ' +
+          'refresh token in an HttpOnly cookie, and every request must come ' +
+          "from a page on the API's own host.",
+      )
       // Routes that need a login say so with ApiAuth() (common/http).
       .addBearerAuth({
         type: 'http',
@@ -80,6 +90,20 @@ export function buildSwaggerDocumentConfig() {
           'The `accessToken` from login, register or refresh. Short-lived ' +
           '(JWT_ACCESS_TTL, 15 minutes by default).',
       })
+      // The admin app's refresh token (AdminAuthController); the browser
+      // sends it by itself, page scripts can't read it.
+      .addCookieAuth(
+        ADMIN_REFRESH_COOKIE,
+        {
+          type: 'apiKey',
+          in: 'cookie',
+          name: ADMIN_REFRESH_COOKIE,
+          description:
+            'Set by `POST /api/admin/auth/login` and replaced by every refresh; ' +
+            'sent only to /api/admin/auth.',
+        },
+        ADMIN_REFRESH_SECURITY,
+      )
       // Errors any endpoint can return, in the shape AllExceptionsFilter sends.
       .addGlobalResponse(
         {

@@ -40,7 +40,7 @@ export interface RotatedRefreshToken {
 }
 
 /** Same error for unknown, used, expired and revoked: no hints for a thief. */
-function invalidRefreshToken(): UnauthorizedException {
+export function invalidRefreshToken(): UnauthorizedException {
   return new UnauthorizedException({
     message: 'Invalid refresh token',
     code: 'INVALID_REFRESH_TOKEN',

@@ -9,9 +9,15 @@ import { Public } from '@/auth/decorators/public.decorator';
 import { REQUEST_ID_HEADER } from '@/common/logging/constants';
 import loggerConfig from '@/config/logger.config';
 import { UserRole } from '@/users/entities/user.entity';
-import { bearer, loginAs } from './utils/auth';
+import {
+  adminLoginAs,
+  adminRefreshCookie,
+  bearer,
+  loginAs,
+  SAME_ORIGIN,
+} from './utils/auth';
 import { resetDatabase } from './utils/database';
-import { createUser } from './utils/factories';
+import { createUser, TEST_PASSWORD } from './utils/factories';
 import { testImage } from './utils/images';
 import { linkToken, mailbox } from './utils/mail';
 import { createTestApp, UUID } from './utils/test-app';
@@ -279,6 +285,43 @@ describe('Logging and request IDs (e2e)', () => {
       ).toHaveLength(2);
       const logged = JSON.stringify(lines);
       for (const secret of [token, email, password]) {
+        expect(logged).not.toContain(secret);
+      }
+    });
+
+    it("never logs the admin app's refresh token, the email or the password", async () => {
+      const dataSource = app.get(DataSource);
+      await resetDatabase(dataSource);
+      resetRateLimits(app);
+      const editor = await createUser(dataSource, {
+        email: 'editor@example.com',
+        role: UserRole.Editor,
+      });
+
+      const { cookie } = await adminLoginAs(app, editor);
+      const refreshed = await http()
+        .post('/api/admin/auth/refresh')
+        .set(SAME_ORIGIN)
+        .set('Cookie', cookie.header)
+        .expect(200);
+      const next = adminRefreshCookie(refreshed);
+      // The used cookie again: a warn line, with the request.
+      await http()
+        .post('/api/admin/auth/refresh')
+        .set(SAME_ORIGIN)
+        .set('Cookie', cookie.header)
+        .expect(401);
+
+      expect(
+        lines.filter((line) => line.req?.url?.startsWith('/api/admin/auth')),
+      ).toHaveLength(3);
+      const logged = JSON.stringify(lines);
+      for (const secret of [
+        cookie.value,
+        next?.value,
+        'editor@example.com',
+        TEST_PASSWORD,
+      ]) {
         expect(logged).not.toContain(secret);
       }
     });

@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import authConfig, { type AuthConfig } from '@/config/auth.config';
 import { MailModule } from '@/mail/mail.module';
 import { UsersModule } from '@/users/users.module';
+import { AdminAuthController } from './controllers/admin-auth.controller';
 import { AuthController } from './controllers/auth.controller';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -22,7 +23,7 @@ import { RefreshTokensService } from './services/refresh-tokens.service';
  * it's `@Public()`. Accounts, password hashing and account tokens come from
  * UsersModule. Serves /auth (register, login, refresh, logout,
  * change-password, forgot-password, reset-password, verify-email,
- * resend-verification).
+ * resend-verification) and /admin/auth (the admin app's staff sessions).
  */
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { RefreshTokensService } from './services/refresh-tokens.service';
     UsersModule,
     MailModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AdminAuthController],
   providers: [
     AuthService,
     AccessTokensService,

@@ -26,7 +26,8 @@
     "migration:run": "npm run build && typeorm migration:run -d dist/database/data-source.js",
     "migration:revert": "npm run build && typeorm migration:revert -d dist/database/data-source.js",
     "migration:show": "npm run build && typeorm migration:show -d dist/database/data-source.js",
-    "import:strapi": "npm run build && node dist/strapi-import/import-strapi.js"
+    "import:strapi": "npm run build && node dist/strapi-import/import-strapi.js",
+    "admin:create": "npm run build && node dist/users/cli/create-admin.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

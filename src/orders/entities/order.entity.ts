@@ -32,7 +32,7 @@ export enum ShippingMethod {
  *
  * Prices are copied into the items when the order is placed, so an order
  * never changes when a product's price or title does. The checks repeat the
- * DTO rules for writers that skip the DTOs (the data migration, AdminJS).
+ * DTO rules for writers that skip the DTOs (the data migration).
  */
 @Entity('customer_order')
 @Unique('UQ_customer_order_number', ['number'])

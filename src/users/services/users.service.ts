@@ -16,7 +16,7 @@ import type { UpdateMeDto } from '../dto/update-me.dto';
 import type { UserDto } from '../dto/user.dto';
 import { AccountTokenPurpose } from '../entities/account-token.entity';
 import { sameEmail } from '../entities/email';
-import { User } from '../entities/user.entity';
+import { User, type UserRole } from '../entities/user.entity';
 import { toUserDto } from '../mappers/user.mapper';
 import { AccountEmailsService } from './account-emails.service';
 import { AccountTokensService } from './account-tokens.service';
@@ -27,6 +27,10 @@ export interface NewUser {
   email: string;
   passwordHash: string;
   phone?: string | null;
+  /** A customer unless given (staff accounts come from `admin:create`). */
+  role?: UserRole;
+  /** Unverified unless given. */
+  emailVerifiedAt?: Date | null;
 }
 
 /** Which unique constraint a duplicate hit, and what the client is told. */
@@ -186,7 +190,8 @@ export class UsersService {
   }
 
   /**
-   * Inserts a customer. A duplicate email or username becomes a 409
+   * Inserts an account (a customer unless `role` says otherwise). A
+   * duplicate email or username becomes a 409
    * (`EMAIL_TAKEN` / `USERNAME_TAKEN`). The database decides, not a lookup
    * first: two parallel registrations can't both pass.
    */
@@ -230,6 +235,18 @@ export class UsersService {
     manager: EntityManager = this.dataSource.manager,
   ): Promise<void> {
     await manager.getRepository(User).update(id, { passwordHash });
+  }
+
+  /**
+   * Access tokens already issued keep the old role until they expire; the
+   * next refresh reads the new one.
+   */
+  async setRole(
+    id: string,
+    role: UserRole,
+    manager: EntityManager = this.dataSource.manager,
+  ): Promise<void> {
+    await manager.getRepository(User).update(id, { role });
   }
 
   private withPassword() {

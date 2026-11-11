@@ -15,7 +15,7 @@ import {
   PasswordService,
 } from '@/users/services/password.service';
 import { UsersService, wrongPassword } from '@/users/services/users.service';
-import type { User } from '@/users/entities/user.entity';
+import { isStaff, type User } from '@/users/entities/user.entity';
 import type { AuthResultDto } from '../dto/auth-result.dto';
 import type { AuthTokensDto } from '../dto/auth-tokens.dto';
 import type { ChangePasswordDto } from '../dto/change-password.dto';
@@ -34,6 +34,14 @@ function invalidCredentials(): UnauthorizedException {
   return new UnauthorizedException({
     message: 'Invalid email/username or password',
     code: 'INVALID_CREDENTIALS',
+  });
+}
+
+/** A customer at the admin app's login. */
+function notStaff(): ForbiddenException {
+  return new ForbiddenException({
+    message: 'This account has no access to the admin',
+    code: 'NOT_STAFF',
   });
 }
 
@@ -102,35 +110,21 @@ export class AuthService {
     return result;
   }
 
-  async login({ identifier, password }: LoginDto): Promise<AuthResultDto> {
-    const user = await this.users.findByIdentifierWithPassword(identifier);
-    const hash = user?.passwordHash;
-    // Unknown users are checked against a dummy hash: same time, same 401.
-    const matches = await this.passwords.verify(password, hash);
-    if (!user || !hash || !matches) {
-      throw invalidCredentials();
-    }
-    // Only after the right password: don't tell strangers an account is blocked.
-    if (user.blocked) {
-      throw new ForbiddenException({
-        message: 'This account is blocked',
-        code: 'ACCOUNT_BLOCKED',
-      });
-    }
+  async login(dto: LoginDto): Promise<AuthResultDto> {
+    const user = await this.checkCredentials(dto);
+    return this.result(user, await this.refreshTokens.issue(user.id));
+  }
 
-    // Strapi's cost-10 hashes are upgraded while the password is at hand
-    // (D8). A legacy password over 72 bytes can't be re-hashed: bcrypt only
-    // ever used its first 72 bytes, and hash() refuses the rest.
-    if (
-      this.passwords.needsRehash(hash) &&
-      Buffer.byteLength(password, 'utf8') <= PASSWORD_MAX_BYTES
-    ) {
-      await this.users.setPassword(
-        user.id,
-        await this.passwords.hash(password),
-      );
+  /**
+   * The admin app's login: as login(), for staff only. A customer gets a
+   * 403 `NOT_STAFF`, only after the right password (like a blocked
+   * account), and no session is started.
+   */
+  async staffLogin(dto: LoginDto): Promise<AuthResultDto> {
+    const user = await this.checkCredentials(dto);
+    if (!isStaff(user.role)) {
+      throw notStaff();
     }
-
     return this.result(user, await this.refreshTokens.issue(user.id));
   }
 
@@ -138,6 +132,21 @@ export class AuthService {
   async refresh(refreshToken: string): Promise<AuthTokensDto> {
     const rotated = await this.refreshTokens.rotate(refreshToken);
     return this.tokens(rotated.user, rotated.refreshToken);
+  }
+
+  /**
+   * The admin app's refresh: as refresh(), plus the account, which the app
+   * shows after a page reload. An account no longer staff gets a 403
+   * `NOT_STAFF`, and the session ends.
+   */
+  async staffRefresh(refreshToken: string): Promise<AuthResultDto> {
+    const { user, refreshToken: next } =
+      await this.refreshTokens.rotate(refreshToken);
+    if (!isStaff(user.role)) {
+      await this.refreshTokens.revokeFamily(next.token);
+      throw notStaff();
+    }
+    return this.result(user, next);
   }
 
   /** Ends the token's session. Unknown tokens are ignored. */
@@ -254,6 +263,46 @@ export class AuthService {
       AccountTokenPurpose.EmailVerification,
     );
     this.accountEmails.emailVerification(user.email, token);
+  }
+
+  /**
+   * The account behind a correct identifier and password: 401
+   * `INVALID_CREDENTIALS` otherwise, 403 `ACCOUNT_BLOCKED` for a blocked one.
+   * Upgrades a weak hash on the way.
+   */
+  private async checkCredentials({
+    identifier,
+    password,
+  }: LoginDto): Promise<User> {
+    const user = await this.users.findByIdentifierWithPassword(identifier);
+    const hash = user?.passwordHash;
+    // Unknown users are checked against a dummy hash: same time, same 401.
+    const matches = await this.passwords.verify(password, hash);
+    if (!user || !hash || !matches) {
+      throw invalidCredentials();
+    }
+    // Only after the right password: don't tell strangers an account is blocked.
+    if (user.blocked) {
+      throw new ForbiddenException({
+        message: 'This account is blocked',
+        code: 'ACCOUNT_BLOCKED',
+      });
+    }
+
+    // Strapi's cost-10 hashes are upgraded while the password is at hand
+    // (D8). A legacy password over 72 bytes can't be re-hashed: bcrypt only
+    // ever used its first 72 bytes, and hash() refuses the rest.
+    if (
+      this.passwords.needsRehash(hash) &&
+      Buffer.byteLength(password, 'utf8') <= PASSWORD_MAX_BYTES
+    ) {
+      await this.users.setPassword(
+        user.id,
+        await this.passwords.hash(password),
+      );
+    }
+
+    return user;
   }
 
   private async tokens(

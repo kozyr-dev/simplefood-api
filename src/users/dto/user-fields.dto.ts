@@ -19,7 +19,7 @@ export const PHONE_MESSAGE =
  * optional (UpdateMeDto). Never a request body itself.
  *
  * The entity's CHECK constraints repeat the username and email rules for
- * writers that skip the DTOs (the data migration, AdminJS).
+ * writers that skip the DTOs (the data migration, the admin CLI).
  */
 export class UserFieldsDto {
   /**

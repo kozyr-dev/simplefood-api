@@ -5,7 +5,7 @@ import { AppBaseEntity } from '@/database/entities/base.entity';
  * A message from the site's contact form. Saved before the shop is emailed,
  * so a lost email loses no message; the admin (phase 7) lists them and marks
  * them handled. The checks repeat the DTO rules for writers that skip the
- * DTOs (the data migration, AdminJS).
+ * DTOs (the data migration).
  */
 @Entity()
 @Check('CHK_contact_submission_email', `position('@' in "email") > 1`)

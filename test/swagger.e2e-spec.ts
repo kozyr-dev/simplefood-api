@@ -192,6 +192,7 @@ describe('Swagger (e2e)', () => {
           'orders',
           'contact',
           'media',
+          'admin',
         ]);
         for (const tag of document.tags ?? []) {
           expect(tag.description).toEqual(expect.any(String));
@@ -223,6 +224,26 @@ describe('Swagger (e2e)', () => {
           scheme: 'bearer',
           bearerFormat: 'JWT',
         });
+      });
+
+      it("declares the admin app's refresh cookie, on the routes that read it", () => {
+        expect(
+          document.components?.securitySchemes?.adminRefreshCookie,
+        ).toMatchObject({
+          type: 'apiKey',
+          in: 'cookie',
+          name: 'sf_admin_refresh',
+        });
+        const usingIt = Object.values(document.paths)
+          .flatMap((item) => Object.values(item) as OperationObject[])
+          .filter((operation) =>
+            operation.security?.some(
+              (scheme) => 'adminRefreshCookie' in scheme,
+            ),
+          )
+          .map((operation) => operation.operationId ?? '')
+          .sort((a, b) => a.localeCompare(b));
+        expect(usingIt).toEqual(['AdminAuth_logout', 'AdminAuth_refresh']);
       });
 
       it('is served as JSON only (no YAML copy)', async () => {
@@ -306,7 +327,11 @@ describe('Swagger (e2e)', () => {
       });
 
       it('shows no login requirement on public routes', () => {
-        for (const { operationId } of routes.filter((r) => r.isPublic)) {
+        // The admin app's refresh and logout read a cookie instead (above).
+        const cookieRoutes = ['AdminAuth_refresh', 'AdminAuth_logout'];
+        for (const { operationId } of routes.filter(
+          (r) => r.isPublic && !cookieRoutes.includes(r.operationId),
+        )) {
           expect({
             operationId,
             security: operationOf(operationId).security,
@@ -317,6 +342,9 @@ describe('Swagger (e2e)', () => {
       it('documents the 429 and Retry-After on every rate-limited route', () => {
         const limited = routes.filter((route) => route.rateLimited);
         expect(limited.map((route) => route.operationId).sort()).toEqual([
+          'AdminAuth_login',
+          'AdminAuth_logout',
+          'AdminAuth_refresh',
           'Auth_changePassword',
           'Auth_forgotPassword',
           'Auth_login',
@@ -359,6 +387,9 @@ describe('Swagger (e2e)', () => {
         ['Media_upload', ['201', '400', '401', '403', '413', '415', '429']],
         ['Media_update', ['200', '401', '403', '404']],
         ['Media_remove', ['204', '401', '403', '404']],
+        ['AdminAuth_login', ['200', '401', '403', '429']],
+        ['AdminAuth_refresh', ['200', '401', '403', '429']],
+        ['AdminAuth_logout', ['204', '403', '429']],
       ])('%s documents its own responses: %j', (operationId, statuses) => {
         const { responses } = operationOf(operationId);
 
@@ -383,6 +414,8 @@ describe('Swagger (e2e)', () => {
         ['Orders_create', '201', 'OrderDto'],
         ['Media_upload', '201', 'MediaDto'],
         ['Media_update', '200', 'MediaDto'],
+        ['AdminAuth_login', '200', 'AdminSessionDto'],
+        ['AdminAuth_refresh', '200', 'AdminSessionDto'],
       ])('%s answers %s with { data: %s }', (operationId, status, model) => {
         expect(operationOf(operationId).responses[status]).toMatchObject({
           content: {
@@ -406,6 +439,7 @@ describe('Swagger (e2e)', () => {
         'Auth_resendVerification',
         'Contact_submit',
         'Media_remove',
+        'AdminAuth_logout',
       ])('has no body for the 204 of %s', (operationId) => {
         expect(operationOf(operationId).responses['204']).toEqual({
           description: expect.any(String),
