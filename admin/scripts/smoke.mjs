@@ -147,6 +147,12 @@ await check('stays signed in after a reload (refresh cookie)', async () => {
 
 /** A list's first row, clicked on its first cell (the middle may be a link). */
 const FIRST_ROW = 'table tbody tr td:first-child';
+/**
+ * Waits for a list's rows by one of its own columns: the page before it may
+ * still show a table (the image library, an order's items) for a moment.
+ */
+const listRows = (column) =>
+  page.waitForSelector(`table tbody tr td.column-${column}`);
 
 /** The id at the end of the current URL (`#/products/<id>`). */
 const currentId = () => page.evaluate(() => location.hash.split('/')[2]);
@@ -183,6 +189,11 @@ await check('uploads an image to the library', async () => {
   await fill('input[name="alt"]', 'Smoke test image');
   await fill('input[name="folder"]', 'smoke');
   await save();
+  // The form shows the file name too: wait for the redirect to the list,
+  // or it lands after the next step has moved on.
+  await page.waitForFunction(() => location.hash === '#/media', {
+    timeout: 10_000,
+  });
   await waitForText('smoke-');
 });
 
@@ -190,7 +201,7 @@ await check(
   'edits a product: price in hryvnias, an image from the picker',
   async () => {
     await go('/products');
-    await page.waitForSelector('table tbody tr');
+    await listRows('price');
     await page.click(FIRST_ROW);
     await page.waitForSelector('input[name="price"]');
     const slug = await inputValue('input[name="slug"]');
@@ -220,7 +231,7 @@ await check(
 
 await check('shows a server validation error under its field', async () => {
   await go('/products');
-  await page.waitForSelector('table tbody tr');
+  await listRows('price');
   await page.click(FIRST_ROW);
   await page.waitForSelector('input[name="slug"]');
   expected.push(/^PATCH \/api\/admin\/products\/[\w-]+ 400$/);
@@ -331,7 +342,7 @@ await check('reorders the header menu; the site follows', async () => {
 
 await check('moves a new order to processing', async () => {
   await go('/orders?filter=%7B%22status%22%3A%22new%22%7D');
-  await page.waitForSelector('table tbody tr');
+  await listRows('number');
   await page.click(FIRST_ROW);
   await click('Start processing');
   await page.waitForFunction(
@@ -345,7 +356,7 @@ await check('moves a new order to processing', async () => {
 
 await check('marks a message handled', async () => {
   await go('/contact-messages');
-  await page.waitForSelector('table tbody tr');
+  await listRows('handled');
   await page.click(FIRST_ROW);
   await click('Mark handled');
   await waitForText('Mark as new');
@@ -367,7 +378,7 @@ await check('changes the site settings; the site follows', async () => {
 
 await check('lists accounts (admins only)', async () => {
   await go('/users');
-  await page.waitForSelector('table tbody tr');
+  await listRows('username');
 });
 
 if (process.env.EDITOR_EMAIL) {

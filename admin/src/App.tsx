@@ -20,6 +20,7 @@ import { orders } from './resources/orders';
 import { pageSections, pages } from './resources/pages';
 import { SettingsPage } from './resources/settings';
 import { users } from './resources/users';
+import { darkTheme, lightTheme } from './theme';
 
 const AppMenu = () => (
   <Menu>
@@ -50,6 +51,9 @@ export function App() {
       authProvider={authProvider}
       dashboard={Dashboard}
       layout={AppLayout}
+      // Follows the system's light or dark mode; the top bar has a toggle.
+      lightTheme={lightTheme}
+      darkTheme={darkTheme}
       requireAuth
       // react-admin would otherwise ping marmelab.com on every load.
       disableTelemetry
