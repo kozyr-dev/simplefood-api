@@ -26,6 +26,7 @@ import {
 import { hours, Throttle } from '@nestjs/throttler';
 import { Roles } from '@/auth/decorators/roles.decorator';
 import { AuthThrottlerGuard } from '@/auth/guards/auth-throttler.guard';
+import { AdminInterceptor } from '@/auth/interceptors/admin.interceptor';
 import { ErrorResponseDto } from '@/common/filters/error-response.dto';
 import {
   ApiAuth,
@@ -49,6 +50,8 @@ const EDITORS = [UserRole.Admin, UserRole.Editor] as const;
 @ApiTags('media')
 @ApiAuth({ roles: EDITORS })
 @Roles(...EDITORS)
+// The admin app's writes: no-store answers, and each one in the audit log.
+@UseInterceptors(AdminInterceptor)
 @Controller('media')
 export class MediaController {
   constructor(private readonly media: MediaService) {}

@@ -98,6 +98,9 @@ const validationSchema = Joi.object({
   // images are stored and served from (/uploads). Relative to the working
   // directory; in Docker, mount a volume here or uploads die with the container.
   UPLOADS_DIR: Joi.string().default('uploads'),
+  // The built admin app (api/admin/dist), served at /admin when it exists.
+  // Relative to the working directory, like UPLOADS_DIR.
+  ADMIN_DIST_DIR: Joi.string().default('admin/dist'),
 }).and('SMTP_USER', 'SMTP_PASSWORD');
 
 export default validationSchema;

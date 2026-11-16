@@ -271,6 +271,11 @@ describe('Swagger (e2e)', () => {
         return operation as OperationObject;
       };
 
+      /** A route of the admin API (/api/admin/*), sign-in excluded. */
+      const isAdminApi = (route: Route) =>
+        route.operationId.startsWith('Admin') &&
+        !route.operationId.startsWith('AdminAuth_');
+
       /** Neither public nor optional: a token is required. */
       const needsLogin = (route: Route) =>
         !route.isPublic && !route.optionalAuth;
@@ -287,7 +292,10 @@ describe('Swagger (e2e)', () => {
             'Users_getMe',
           ]),
         );
-        expect(routes.filter(needsLogin)).toHaveLength(8);
+        // The admin API (every Admin* controller but the sign-in) on top.
+        expect(
+          routes.filter((route) => needsLogin(route) && !isAdminApi(route)),
+        ).toHaveLength(8);
         expect(
           routes
             .filter((route) => route.optionalAuth)
@@ -446,18 +454,54 @@ describe('Swagger (e2e)', () => {
         });
       });
 
+      it('limits every admin API route to staff, and needs a login for it', () => {
+        const admin = routes.filter(isAdminApi);
+        expect(admin.length).toBeGreaterThan(40);
+
+        for (const route of admin) {
+          expect({
+            id: route.operationId,
+            needsLogin: needsLogin(route),
+          }).toEqual({
+            id: route.operationId,
+            needsLogin: true,
+          });
+          expect({ id: route.operationId, roles: route.roles }).toEqual({
+            id: route.operationId,
+            roles: expect.arrayContaining(['admin']),
+          });
+          expect(route.roles).not.toContain('customer');
+        }
+        // Admins only: accounts, and deleting what customers wrote.
+        expect(
+          admin
+            .filter((route) => !route.roles?.includes('editor'))
+            .map((route) => route.operationId)
+            .sort((a, b) => a.localeCompare(b)),
+        ).toEqual([
+          'AdminContactMessages_remove',
+          'AdminUsers_findAll',
+          'AdminUsers_findOne',
+          'AdminUsers_sendPasswordReset',
+          'AdminUsers_update',
+        ]);
+      });
+
       it('documents the 403 on every route limited to roles', () => {
         const limited = routes.filter((route) => route.roles);
-        expect(limited.map((route) => route.operationId).sort()).toEqual([
-          'Media_remove',
-          'Media_update',
-          'Media_upload',
-        ]);
+        expect(limited.map((route) => route.operationId)).toEqual(
+          expect.arrayContaining([
+            'Media_remove',
+            'Media_update',
+            'Media_upload',
+          ]),
+        );
+        expect(limited).toHaveLength(3 + routes.filter(isAdminApi).length);
 
         for (const { operationId, roles } of limited) {
           expect(operationOf(operationId).responses['403']).toMatchObject({
             ...ERROR_BODY,
-            description: expect.stringContaining(roles?.join(' or ') ?? ''),
+            description: `Logged in, but not as ${roles?.join(' or ')} (\`FORBIDDEN\`).`,
           });
         }
       });

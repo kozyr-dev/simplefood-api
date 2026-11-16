@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import mediaConfig, { type MediaConfig } from '@/config/media.config';
+import { AdminMediaController } from './controllers/admin-media.controller';
 import { MediaController } from './controllers/media.controller';
 import { Media } from './entities/media.entity';
 import { LocalDiskStorage } from './services/local-disk-storage';
+import { AdminMediaService } from './services/admin-media.service';
 import { MediaService } from './services/media.service';
 import { MEDIA_STORAGE } from './types/media.types';
 
@@ -19,7 +21,7 @@ import { MEDIA_STORAGE } from './types/media.types';
     ConfigModule.forFeature(mediaConfig),
     TypeOrmModule.forFeature([Media]),
   ],
-  controllers: [MediaController],
+  controllers: [MediaController, AdminMediaController],
   providers: [
     {
       provide: MEDIA_STORAGE,
@@ -31,6 +33,7 @@ import { MEDIA_STORAGE } from './types/media.types';
       },
     },
     MediaService,
+    AdminMediaService,
   ],
   exports: [TypeOrmModule, MediaService],
 })

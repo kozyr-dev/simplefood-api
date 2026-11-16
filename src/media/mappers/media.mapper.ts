@@ -1,3 +1,4 @@
+import type { AdminMediaDto } from '../dto/admin-media.dto';
 import type { MediaDto } from '../dto/media.dto';
 import type { Media } from '../entities/media.entity';
 
@@ -21,4 +22,15 @@ export function toMediaDtoOrNull(
   media: Media | null | undefined,
 ): MediaDto | null {
   return media ? toMediaDto(media) : null;
+}
+
+/** For the admin app: the public fields plus the file's details. */
+export function toAdminMediaDto(media: Media): AdminMediaDto {
+  return Object.assign(toMediaDto(media), {
+    name: media.name,
+    folder: media.folder,
+    mime: media.mime,
+    size: media.size,
+    createdAt: media.createdAt,
+  });
 }

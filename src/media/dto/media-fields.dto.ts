@@ -1,7 +1,7 @@
 import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 /** Admin grouping: lower-case letters, digits and hyphens, e.g. `products`. */
-const FOLDER = /^[a-z0-9][a-z0-9-]{0,49}$/;
+export const FOLDER = /^[a-z0-9][a-z0-9-]{0,49}$/;
 
 /**
  * The editable fields of an image: sent with the upload, or changed later

@@ -36,6 +36,10 @@ class LoggingTestController {
 interface LogLine {
   level: number;
   msg: string;
+  adminId?: string;
+  method?: string;
+  route?: string;
+  recordId?: string;
   reqId?: string;
   context?: string;
   req?: {
@@ -324,6 +328,38 @@ describe('Logging and request IDs (e2e)', () => {
       ]) {
         expect(logged).not.toContain(secret);
       }
+    });
+
+    it('writes one audit line per admin write: who, route pattern, record; no values', async () => {
+      const dataSource = app.get(DataSource);
+      await resetDatabase(dataSource);
+      resetRateLimits(app);
+      const editor = await createUser(dataSource, { role: UserRole.Editor });
+      const { accessToken } = await loginAs(app, editor);
+      const write = () =>
+        http()
+          .post('/api/admin/product-categories')
+          .set(bearer(accessToken))
+          .send({ name: 'Секретна назва', slug: 'secret-name' });
+
+      const created = await write().expect(201);
+      await write().expect(409); // a failed write: no audit line
+      await http()
+        .get('/api/admin/product-categories')
+        .set(bearer(accessToken))
+        .expect(200); // a read: no audit line
+
+      const audit = lines.filter((line) => line.msg === 'Admin action');
+      expect(audit).toEqual([
+        expect.objectContaining({
+          context: 'AdminAudit',
+          adminId: editor.id,
+          method: 'POST',
+          route: '/api/admin/product-categories',
+          recordId: (created.body as { data: { id: string } }).data.id,
+        }),
+      ]);
+      expect(JSON.stringify(audit)).not.toMatch(/Секретна|secret-name/);
     });
 
     it('does not log health-check requests', async () => {

@@ -1,4 +1,10 @@
+import { toAdminSeoDto } from '@/common/seo/admin-seo';
 import { toSeoDto } from '@/common/seo/seo.mapper';
+import { publishStateOf } from '@/database/published';
+import type {
+  AdminBlogCategoryDto,
+  AdminBlogPostDto,
+} from '../dto/admin-blog.dto';
 import type { BlogCategoryDto } from '../dto/blog-category.dto';
 import type { BlogPostSummaryDto } from '../dto/blog-post-summary.dto';
 import type { BlogPostDto } from '../dto/blog-post.dto';
@@ -50,4 +56,34 @@ export function toBlogPostDto(post: BlogPost): BlogPostDto {
     seo: toSeoDto(post.seo),
     updatedAt: post.updatedAt,
   });
+}
+
+/** For the admin app (load `image`, `categories` and `seo.shareImage`). */
+export function toAdminBlogPostDto(post: BlogPost): AdminBlogPostDto {
+  return {
+    id: post.id,
+    slug: post.slug,
+    title: post.title,
+    text: post.text,
+    imageId: post.image?.id ?? null,
+    image: toMediaDtoOrNull(post.image),
+    categoryIds: (post.categories ?? []).map((category) => category.id),
+    seo: toAdminSeoDto(post.seo),
+    publishedAt: post.publishedAt,
+    state: publishStateOf(post.publishedAt),
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+  };
+}
+
+export function toAdminBlogCategoryDto(
+  category: BlogCategory,
+): AdminBlogCategoryDto {
+  return {
+    id: category.id,
+    name: category.name,
+    slug: category.slug,
+    createdAt: category.createdAt,
+    updatedAt: category.updatedAt,
+  };
 }

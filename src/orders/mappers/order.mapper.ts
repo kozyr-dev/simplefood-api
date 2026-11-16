@@ -1,5 +1,7 @@
+import type { AdminOrderDto } from '../dto/admin-order.dto';
 import type { OrderDto, OrderItemDto } from '../dto/order.dto';
 import type { OrderItem } from '../entities/order-item.entity';
+import { ORDER_TRANSITIONS } from '../entities/order-status';
 import type { Order } from '../entities/order.entity';
 
 /** Field by field, so a new column never reaches a response by accident. */
@@ -36,4 +38,18 @@ export function toOrderDto(order: Order, items: OrderItem[]): OrderDto {
     legacyItemsText: order.legacyDishesText,
     createdAt: order.createdAt,
   };
+}
+
+/** For the shop's staff: the order plus its account link and next statuses. */
+export function toAdminOrderDto(
+  order: Order,
+  items: OrderItem[],
+  itemCount = items.length,
+): AdminOrderDto {
+  return Object.assign(toOrderDto(order, items), {
+    userId: order.userId,
+    itemCount,
+    nextStatuses: [...ORDER_TRANSITIONS[order.status]],
+    updatedAt: order.updatedAt,
+  });
 }

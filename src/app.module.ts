@@ -12,6 +12,7 @@ import { UsersModule } from '@/users/users.module';
 import { AuthModule } from '@/auth/auth.module';
 import { OrdersModule } from '@/orders/orders.module';
 import { ContactModule } from '@/contact/contact.module';
+import { DashboardModule } from '@/dashboard/dashboard.module';
 import databaseConfig from '@/config/database.config';
 import validationSchema from '@/config/env.validation';
 import loggerConfig from '@/config/logger.config';
@@ -40,6 +41,7 @@ import loggerConfig from '@/config/logger.config';
     AuthModule,
     OrdersModule,
     ContactModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

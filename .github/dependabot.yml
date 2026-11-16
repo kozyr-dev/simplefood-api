@@ -16,6 +16,22 @@ updates:
         dependency-type: development
         update-types: [minor, patch]
 
+  # The admin app (its own package).
+  - package-ecosystem: npm
+    directory: /admin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # react-admin and its ra-* packages are released together.
+      react-admin:
+        patterns: ['react-admin', 'ra-*']
+      mui:
+        patterns: ['@mui/*']
+      dev-tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

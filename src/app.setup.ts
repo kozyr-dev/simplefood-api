@@ -5,6 +5,7 @@ import { HttpAdapterHost } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger } from 'nestjs-pino';
 import { AllExceptionsFilter } from '@/common/filters/all-exceptions.filter';
+import { serveAdminApp } from '@/common/http/admin-app';
 import { TrimPipe } from '@/common/pipes/trim.pipe';
 import { flattenValidationErrors } from '@/common/validation/flatten-validation-errors';
 import { REQUEST_ID_HEADER } from '@/common/logging/constants';
@@ -65,6 +66,13 @@ export function configureApp(app: NestExpressApplication): void {
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     },
   });
+
+  // The admin app (api/admin/), when it has been built: same host as the API.
+  if (!serveAdminApp(app, config.getOrThrow<string>('ADMIN_DIST_DIR'))) {
+    app
+      .get(Logger)
+      .warn('Admin app not built: /admin is not served (see README)');
+  }
 
   // Pipes run in this order: trim first, so validators see trimmed values.
   app.useGlobalPipes(

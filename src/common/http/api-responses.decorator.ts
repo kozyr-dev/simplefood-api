@@ -71,14 +71,7 @@ export function ApiDataResponse(
 export function ApiAuth({ roles }: { roles?: readonly string[] } = {}) {
   return applyDecorators(
     ApiBearerAuth(),
-    ...(roles
-      ? [
-          ApiForbiddenResponse({
-            type: ErrorResponseDto,
-            description: `Logged in, but not as ${roles.join(' or ')} (\`FORBIDDEN\`).`,
-          }),
-        ]
-      : []),
+    ...(roles ? [ApiRolesForbidden(roles)] : []),
     ApiUnauthorizedResponse({
       type: ErrorResponseDto,
       description:
@@ -93,6 +86,17 @@ export function ApiAuth({ roles }: { roles?: readonly string[] } = {}) {
       },
     }),
   );
+}
+
+/**
+ * The 403 RolesGuard sends to other roles. Part of `ApiAuth({ roles })`;
+ * alone on a method whose `@Roles()` narrows its controller's.
+ */
+export function ApiRolesForbidden(roles: readonly string[]) {
+  return ApiForbiddenResponse({
+    type: ErrorResponseDto,
+    description: `Logged in, but not as ${roles.join(' or ')} (\`FORBIDDEN\`).`,
+  });
 }
 
 /**

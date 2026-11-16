@@ -57,3 +57,40 @@ jobs:
       # Known vulnerabilities in what ships to production (dev tools excluded).
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+  admin:
+    name: Admin app (lint, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: admin
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      # Type-checks first (tsc), then bundles into admin/dist.
+      - name: Type-check and build
+        run: npm run build
+
+      - name: Unit tests
+        run: npm test
+
+      # Everything in the bundle ships to staff browsers.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
