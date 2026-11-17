@@ -5,12 +5,13 @@ on:
   push:
     branches: [main]
 
-# A newer push to the same PR/branch cancels the run that's still going.
+# A newer push to the same PR cancels the run that's still going. On main it
+# waits instead: a cancelled run could stop a deploy halfway (migrations).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Least privilege: CI only needs to read the code.
+# Least privilege: CI only needs to read the code (publish adds packages: write).
 permissions:
   contents: read
 
@@ -94,3 +95,130 @@ jobs:
       # Everything in the bundle ships to staff browsers.
       - name: Audit dependencies
         run: npm audit --audit-level=high
+
+  image:
+    name: Docker image (build, smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # A script or Compose file that doesn't parse would otherwise only fail
+      # on the VPS. (shellcheck comes with the runner.)
+      - name: Check the deploy files
+        run: |
+          shellcheck deploy/deploy.sh scripts/docker-smoke.sh
+          touch deploy/api.env
+          API_IMAGE=check POSTGRES_PASSWORD=check docker compose -f deploy/compose.yaml config --quiet
+
+      - uses: docker/setup-buildx-action@v4
+
+      # linux/amd64, like the VPS. `load` hands the image to the runner's
+      # Docker for the smoke test; the layers go to the Actions cache, so the
+      # publish job below rebuilds nothing.
+      - name: Build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: simplefood-api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Starts it next to a throwaway Postgres: migrations, health, the admin
+      # app, bcrypt and sharp on this platform, JSON logs, a fast stop.
+      - name: Smoke test
+        run: scripts/docker-smoke.sh simplefood-api:ci
+
+  publish:
+    name: Publish the image to GHCR
+    # Only what passed every check, and only from main.
+    needs: [ci, admin, image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tagged with the full commit SHA: a deploy names exactly the image
+      # that was tested, and an earlier version is just an earlier tag.
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/simplefood-api
+          tags: type=sha,format=long,prefix=
+
+      - name: Build (from the image job's cache) and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+
+  deploy:
+    name: Deploy to the VPS
+    needs: publish
+    # Skipped until the VPS is set up and the repository variable
+    # DEPLOY_ENABLED is `true` (deploy/README.md).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    # One deploy at a time, and never cancelled halfway.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      # The job's own token pulls the image on the VPS.
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: SSH access
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # The pinned host key: the job talks to this server or to none.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          printf 'Host vps\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  BatchMode yes\n  StrictHostKeyChecking yes\n' \
+            "$VPS_HOST" "$VPS_USER" > ~/.ssh/config
+
+      - name: Copy the Compose file and the deploy script
+        run: scp deploy/compose.yaml deploy/deploy.sh vps:/opt/simplefood-api/
+
+      # The image `publish` pushed (registry paths are lower-case). The token
+      # goes on stdin, never into a command line or a file on the VPS.
+      - name: Deploy
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REGISTRY_USER: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${OWNER,,}/simplefood-api:$GITHUB_SHA"
+          # shellcheck disable=SC2029 # expanded here on purpose: the VPS gets the values
+          printf '%s' "$TOKEN" | ssh vps "bash /opt/simplefood-api/deploy.sh '$image' '$REGISTRY_USER'"

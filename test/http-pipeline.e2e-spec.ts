@@ -322,6 +322,24 @@ describe('HTTP pipeline (e2e)', () => {
         },
       });
     });
+
+    it("returns 415 in the error shape, without the parser's wording, for an unsupported charset", async () => {
+      const res = await http()
+        .post('/api/pipeline-test')
+        // The JSON parser takes only UTF charsets.
+        .set('Content-Type', 'application/json; charset=latin1')
+        .send(JSON.stringify(validBody))
+        .expect(415);
+
+      expect(res.body).toEqual({
+        error: {
+          status: 415,
+          code: 'UNSUPPORTED_MEDIA_TYPE',
+          requestId: expect.any(String),
+          message: 'Invalid request body',
+        },
+      });
+    });
   });
 });
 

@@ -424,104 +424,174 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
 
 ## Cutover (phase 9)
 
-**Production today** (from the deploy workflows, 2026-11-17):
+**Production today** (inventory of the VPS, 2026-11-17):
 
-- **Hosting:** one VPS with a hosting panel's layout (`/home/dev/web/<domain>/public_html`). nginx in front, with TLS for both domains.
-- **Strapi:** runs under pm2 (`simplefood-backend`, port 1338) at `api-simplefood.kozyr.info`, on SQLite `.tmp/data.db` with uploads in `public/uploads`. GitHub Actions deploys it by `git pull` and `npm ci`.
-- **Website:** Next's standalone server under pm2 (`simplefood-frontend`) at `simplefood.kozyr.info`, built on the VPS by its deploy workflow.
-- **Docker:** the backend's Docker files were an experiment; nothing on the VPS uses them.
+- **Machine:** Ubuntu 24.04, `x86_64`, 1 vCPU, 3.8 GB RAM plus 2 GB swap, 38 GB of 48 GB disk free.
+  - Memory: about 1.8 GB available.
+  - The biggest users are the panel's mail stack: ClamAV (~920 MB) and SpamAssassin (~380 MB), although the server hosts no mail domains or mailboxes.
+- **Docker:** Engine 29.4.3 and Compose v5.1.3 are installed. Nothing runs on them yet.
+- **Hosting panel:** HestiaCP.
+  - It generates each domain's nginx config from a proxy template:
+    - `simplefood-proxy`, for the site;
+    - `simplefood-api-proxy`, for the API.
+  - Both are in `/usr/local/hestia/data/templates/web/nginx/`. A hand edit of the generated `/home/dev/conf/web/<domain>/nginx*.conf` is lost on the panel's next rebuild, so changes go into templates.
+  - Hestia also runs Apache, MariaDB, exim, dovecot and bind. None of them serves this project.
+- **TLS:** Let's Encrypt through Hestia for both domains, valid until 4 January 2027 and renewed by the panel.
+- **nginx:**
+  - The API vhost proxies everything to `127.0.0.1:1338`, with `Host`, `X-Real-IP`, `X-Forwarded-For` and `X-Forwarded-Proto`, plus `client_max_body_size 100M`.
+  - **The site vhost also proxies `/api/` and `/uploads/` to Strapi.** Those two locations have to go before the new site runs, or nginx sends its `/api/auth/*` routes to the backend (9.3).
+- **Processes:**
+  - Everything runs as `root`, under root's pm2 (`/root/.pm2`), on Node 20.20.2 (the only Node in root's nvm).
+    - `simplefood-backend` is `npm run start` (Strapi on `0.0.0.0:1338`).
+    - `simplefood-frontend` is `.next/standalone/server.js` (on `0.0.0.0:3000`, Next 16.2.0, `main` at `6d07463`).
+  - The user `dev` has no login shell.
+- **Firewall:**
+  - Hestia's iptables rules allow, from outside:
+    - 22, 80 and 443;
+    - the panel (8083);
+    - mail;
+    - DNS;
+    - FTP.
+  - 1338 and 3000 listen on all addresses but are blocked by the firewall.
+  - Docker publishes ports through its own chains, ahead of these rules: Compose must bind to `127.0.0.1` only (9.2).
+- **DNS:**
+  - `kozyr.info` is served by Hostinger's nameservers (`ns1/ns2.dns-parking.com`). Records are edited in Hostinger's panel.
+  - Hestia has a zone for it too, but it isn't authoritative: it has no effect.
+  - Publicly the domain has no MX, SPF or DMARC records.
+- **Mail:**
+  - Strapi's email plugin uses the local sendmail (no SMTP settings).
+  - Mailgun's SMTP (`smtp.mailgun.org` and `smtp.eu.mailgun.org`, port 587) is reachable from the VPS.
+- **Data:** `data.db` 2.4 MB; `public/uploads` 8 MB in 221 files.
+- **Deploys:** GitHub Actions over SSH, with the secrets `VPS_HOST`, `VPS_USER` and `VPS_SSH_KEY`.
+  - **Strapi:** builds the admin in CI and copies it over, then `git pull`, `npm ci --omit=dev` and `pm2 restart` on the VPS.
+  - **Website:** tests in CI, then on the VPS `git pull`, `npm ci`, `npm run build` (on the 1 vCPU), copies static files into the standalone folder, and `pm2 restart`.
+  - The api repo has CI only.
+- **Backups:** Hestia's nightly local backup of the `dev` user (`/backup`). Postgres in a Docker volume won't be in it. No other backups: not needed for this portfolio project (user, 2026-11-17).
+- **SSH:** root may sign in with a password. One key is authorised for root.
 
-**The goal:** the same two domains, with Postgres and the Nest API (and its admin at `/admin`) instead of Strapi, and the website from `feature/nest-api`. Customers keep their passwords and order history. Staff move to the new admin. Strapi stays switchable-back for two weeks.
+**The goal:** the same two domains, with Postgres and the Nest API (and its admin at `/admin`) instead of Strapi, and the website from `feature/nest-api`. Customers keep their passwords and order history. Staff move to the new admin. **No rollback** (user's decision, 2026-11-17): once the new stack runs, the Strapi instance is deleted from the server.
 
-### Decisions (proposed; confirm before 9.1)
+### Decisions (all confirmed by the user, 2026-11-17)
 
-- **C1 Postgres and the API in Docker Compose** on the VPS (the plan since phase 1): one image, the same on every host, with migrations and the import run from it.
-  - **Needs:** Docker Engine on the VPS (9.0 checks).
+- **C1 Postgres and the API in Docker Compose** on the VPS (the plan since phase 1): one image, the same on every host, with migrations and the import run from it. Docker is already installed (9.0).
   - **Alternative:** Postgres from the OS packages and the API under pm2, like today.
 - **C2 The website stays on pm2**, as today. It moves to Node 24 and listens on `127.0.0.1` only: its session routes pass `X-Forwarded-For` on, so it must be reachable only through nginx.
-- **C3 Images built in CI and published to GHCR**, tagged with the commit SHA, so the VPS pulls a tested image and a rollback is a tag. The alternative is building on the VPS.
-- **C4 A transactional mail provider** for `MAIL_FROM` on the shop's domain: Brevo, Mailgun, Postmark or Amazon SES, **your choice** (an account is needed). It needs SPF, DKIM and DMARC records, or mail lands in spam.
-- **C5 Off-site backups:**
-  - nightly `pg_dump` plus the uploads, to storage outside the VPS (an S3-compatible bucket or a storage box, **your choice**);
-  - kept 14 days daily and 8 weeks weekly;
-  - a restore test each month.
-- **C6 The window:** a quiet evening, about 30–45 minutes, with a maintenance page on the site (the shop's phone number on it). The rehearsal (9.6) sizes it.
+- **C3 Images built in CI and published to GHCR**, tagged with the commit SHA, so the VPS pulls a tested image, and going back to an earlier API version is a matter of its tag. The alternative, building on the VPS, would take the single vCPU away from the running site for minutes.
+- **C4 Mailgun** (the user has an account):
+  - **A sending subdomain** (e.g. `mg.kozyr.info`), so its records can't disturb the main domain's mail. `MAIL_FROM` is an address on it.
+  - **SMTP** on port 587 with STARTTLS (`SMTP_SECURE=false`; production requires TLS): `smtp.mailgun.org`, or `smtp.eu.mailgun.org` for an EU-region domain. The SMTP credentials of that domain, not the account's password.
+  - **Tracking off** (opens, clicks, unsubscribes): click tracking rewrites links through Mailgun's servers, and the account emails carry single-use tokens.
+- **C5 No backups** (user's decision, 2026-11-17): a portfolio project. The final Strapi data stays archived (9.7, step 2).
+- **C6 No fixed window and no maintenance page** (user's decision): the switch can happen at any time. With no rollback, the rehearsal (9.6) is what makes it safe; orders placed on Strapi between its freeze (9.7, step 2) and the website release fail, so the steps in between run back to back.
 - **C7 Rehearsal over SSH tunnels**, with no new subdomain or certificate: the rehearsal API and site run on other ports of the VPS and are opened through tunnels.
 
 ### Steps
 
-**9.0 Inventory (read-only, on the VPS)**
+**9.0 Inventory (read-only, on the VPS)**: done 2026-11-17, facts under "Production today".
 
-- **The machine:** OS, CPU architecture (`uname -m`), RAM and disk space. Is Docker installed? Which hosting panel manages nginx?
-- **nginx:** the vhosts of both domains (where they proxy, `client_max_body_size`, headers), and the TLS certificates (renewal).
-- **Processes:** `pm2 ls`, and the Node versions (nvm) used by each process.
-- **Data:** the size of `data.db` and `public/uploads`.
-- **Firewall:** only 22, 80 and 443 open; 1338, 3000 and 5432 not reachable from outside.
-- **Phase 0:** check that Strapi's public role can no longer read orders and users. It matters until the switch.
-- **Done when:** a short note in this plan with the facts above, and C1–C7 confirmed.
+- **Phase 0:** order access is fixed: Public and Authenticated get 403 on `/api/orders`, and Public on `/api/users`.
+  - Still open on 2026-11-17: Public `email.send` and Authenticated `user.find`/`findOne`.
+  - The user leaves them: Strapi is removed soon.
+- **Decisions:** confirmed (C6 changed: no window, no maintenance page).
 
-**9.1 The production image** (from phase 1; `.dockerignore` is already an allow-list)
+**9.1 The production image**: done 2026-11-17 (see the README's "Production image")
 
-- **`Dockerfile`, 3 stages on `node:24-alpine`:**
-  - `build`: `npm ci`, `nest build` (so the Swagger plugin runs), and the admin app (`npm ci && npm run build` in `admin/`, with `VITE_SITE_URL=https://simplefood.kozyr.info` for its "Open on the site" links);
-  - `deps`: `npm ci --omit=dev`;
-  - `runtime`.
+- **`Dockerfile`:** a `base` stage (`node:24.22.3-alpine3.24`, the one line Dependabot bumps), then `build` (`nest build`), `admin` (its bundle, `VITE_SITE_URL` as a build argument), `deps` (`npm ci --omit=dev`, then pruned) and `runtime`.
+  - npm cache mounts.
+  - `.dockerignore` stays an allow-list, now with the admin app's sources.
+  - `sharp` and `bcrypt` load their Alpine (musl) builds on both amd64 and arm64.
+- **Runtime:**
+  - `NODE_ENV=production`, `NODE_OPTIONS=--enable-source-maps`, `NO_COLOR=1`, `PORT=1339`, `UPLOADS_DIR=/app/uploads` (owned by `node`), `ADMIN_DIST_DIR=/app/admin/dist`;
+  - `USER node` and `CMD ["node", "dist/main.js"]`, run with `init: true`.
+  - **Changed from the plan:**
+    - **The code is owned by root, not `node`:** the app can read it but not change it.
+    - **npm, yarn and corepack are removed from the image:** one-off commands run with `node`.
+- **Health:** `src/healthcheck.ts` (GET `/health`, 2 s timeout) in a `HEALTHCHECK` every 30 s, every 2 s while starting.
+- **Migrations:** `node node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js` in a one-off container (instead of an npm script: no npm in the image).
+- **Size:** 81 MB to download, 235 MB on disk; the plan aimed at under 250 MB.
+  - Node's base image is 176 MB of that.
+  - `deps` deletes what Node never loads: type definitions, source maps, TypeORM's browser build, `typescript` and `ts-node`. They are optional peers, used only at build time. Together they are 93 MB of the 200 MB `node_modules`.
+- **CI** (`.github/workflows/ci.yml`):
+  - **`image`:** builds `linux/amd64` with the GitHub Actions cache and runs `scripts/docker-smoke.sh` on it (24 checks).
+  - **`publish`:** runs on pushes to `main` once `ci`, `admin` and `image` pass, and pushes `ghcr.io/<owner>/simplefood-api:<full SHA>` from the same cache.
+  - Dependabot also watches the base image (no major bumps).
+- **Found on the way:**
+  - **Vulnerabilities:** Trivy found three high-severity issues in production dependencies: `multer` 2.4.0, `body-parser` 2.3.0 and `joi` 18.3.0.
+  - **Dependency fix:** `@nestjs/common`, `core`, `platform-express` and `testing` 12.2.0 → 12.4.2 (`multer` 2.5.0), plus `body-parser` 2.4.0 and `joi` 18.3.2 within their ranges. `npm audit --omit=dev` is now clean.
+  - **A behaviour change in Nest 12.3+:** it wraps body-parser errors in an `HttpException`, which turned the 413 message into the parser's text. `AllExceptionsFilter` now reads the original from `cause`.
+  - **A bug from before:** an unsupported charset answered 500, since it isn't an `entity.*` error. It now answers 415 "Invalid request body". There is a new e2e test for it.
+- **Verified:**
+  - **Linux (amd64 and arm64):** the smoke test passes on both architectures. It covers the image's user and contents, bad config refused without printing the secret, migrations, healthy status, `/health`, `/api/products`, the 404 shape, `/admin/`, Swagger off, a staff account and login (bcrypt), an upload served from `/uploads` (sharp), JSON logs, the probe failing without the database, and `docker stop` under a second.
+  - **The smoke test itself:** two deliberately broken images fail it.
+  - **Stack traces** point to `src/*.ts`.
+  - **The API's checks:** format, typecheck, lint and build pass; 759 unit tests and 668 e2e tests pass.
+- **Needs the user:** the api repo has no GitHub remote yet. CI and `publish` run once it's pushed to GitHub (C3).
 
-  Use npm cache mounts and bind-mounted `package*.json`. If `sharp` has trouble on Alpine's musl, switch to `bookworm-slim`. Add `admin/` to the `.dockerignore` allow-list, without `admin/node_modules` and `admin/dist`.
+**9.2 Production Compose, configuration and deploy**: written and tested locally 2026-11-17; on the VPS once the repo is on GitHub (see `deploy/README.md`)
 
-- **Runtime stage:**
-  - `NODE_ENV=production`, `NODE_OPTIONS=--enable-source-maps`.
-  - Copy `dist/`, the production `node_modules`, `admin/dist` (at `ADMIN_DIST_DIR`) and **`package.json`** (the Swagger version reads it) with `--chown=node:node`, then `USER node` and `EXPOSE 1339`.
-  - `CMD ["node", "dist/main.js"]` in exec form, never `npm start`, so SIGTERM reaches Node and the shutdown hooks run. Run with `init: true`.
-- **Health check:** `src/healthcheck.ts` `fetch`es `/health` with a 2 s timeout and exits 0 or 1 (Alpine has no curl): `HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --start-interval=2s --retries=3 CMD ["node", "dist/healthcheck.js"]`.
-- **Migrations:** a `migration:run:prod` script (`typeorm migration:run -d dist/database/data-source.js`, no build), run as a one-off container from the same image before a new version starts.
-- **Architecture:** build `linux/amd64` in CI (Apple Silicon builds `arm64` by default); match the VPS's `uname -m`.
-- **CI:**
-  - a `docker` job builds the image, starts it next to a Postgres container, waits for `healthy` and checks `/health` and `/admin/`;
-  - the deploy workflow publishes it to GHCR as `ghcr.io/<owner>/simplefood-api:<sha>` (C3).
-- **Done when:**
-  - the image is under about 250 MB, with no dev tools, sources or `.env`;
-  - it runs as `uid=1000(node)`, refuses to start with bad config, turns healthy and writes JSON logs;
-  - `docker stop` takes about a second;
-  - migrations run from it, and stack traces point to `src/*.ts`.
-
-  Also look at `docker scout cves`.
-
-**9.2 Production Compose and configuration** (`deploy/docker-compose.prod.yml` in the api repo, plus a documented `.env.production` template)
-
-- **`postgres`:** `postgres:18`, a named volume, no published port (or `127.0.0.1` only), a `pg_isready` health check, `restart: unless-stopped`.
-- **`api`:**
-  - the GHCR image by SHA; `ports: ["127.0.0.1:1339:1339"]`; a named volume for `UPLOADS_DIR` (owned by `node`);
-  - `init: true`, `restart: unless-stopped`, `depends_on` Postgres healthy;
-  - log rotation (`json-file`, `max-size: 10m`, `max-file: 5`).
-- **One-off commands from the same image:**
-  - migrations;
-  - the import (9.7);
-  - `node dist/users/cli/create-admin.js --email … --name …` for staff (`docker compose run --rm -it api …`).
-- **`.env.production`** (on the VPS only, `chmod 600`, never in git):
-  - `NODE_ENV=production`, `SWAGGER_ENABLED=false`, `LOG_LEVEL=info`;
-  - `DB_*` with a generated password;
-  - `JWT_ACCESS_SECRET` from `openssl rand -base64 48`;
-  - `CORS_ORIGINS` and `FRONTEND_URL` both `https://simplefood.kozyr.info`;
-  - `TRUST_PROXY_HOPS=1` (nginx, see 9.3);
-  - the `SMTP_*` settings, `MAIL_FROM` and `MAIL_NOTIFY_TO` (the shop's inbox).
+- **[deploy/compose.yaml](../deploy/compose.yaml)** (project `simplefood-api`, in `/opt/simplefood-api` on the VPS):
+  - **`postgres`:** `postgres:18.7-alpine3.24`, the volume `postgres-data`, no published port, a `pg_isready` health check, 512 MB.
+  - **`api`:** the image from `API_IMAGE`, `127.0.0.1:${API_PORT:-1339}`, the volume `uploads`, `init`, 768 MB, waits for Postgres to be healthy.
+  - **`migrate`** (profile `tools`): the same container running the migrations.
+  - **Both** have `restart: unless-stopped` and rotated logs (`json-file`, 10 MB × 5).
+- **Configuration:**
+  - **`.env`** is for Compose: `POSTGRES_PASSWORD`, plus `API_IMAGE`, which `deploy.sh` writes.
+  - **`api.env`** holds the API's settings, read raw (`format: raw`: no `$` substitution, no quotes).
+  - **The `DB_*` settings** are fixed in the Compose file.
+  - **Templates:** `deploy/.env.example` and `deploy/api.env.example`. The real files are `chmod 600`, on the VPS only, and `*.env` is gitignored.
+- **[deploy/deploy.sh](../deploy/deploy.sh):**
+  1. Pulls the image, logging in with a token from stdin.
+  2. Runs the migrations. If they fail, it stops and the running API is untouched.
+  3. Replaces the API and waits up to 90 s for it to turn healthy. If it doesn't, it shows the logs and starts the previous image again.
+  4. Records the image in `.env` and keeps the previous one.
+  - A `flock` prevents two deploys at once.
+- **CI `deploy` job** (after `publish`, only with the repository variable `DEPLOY_ENABLED=true`):
+  - It copies `compose.yaml` and `deploy.sh` to the VPS over SSH.
+    - The host key is pinned (`VPS_KNOWN_HOSTS`).
+    - It uses `BatchMode`.
+  - It runs `deploy.sh` with the job's own `GITHUB_TOKEN` (`packages: read`) on stdin, so the VPS stores no registry password.
+  - The workflow no longer cancels runs on `main`, so a deploy can't stop halfway.
+  - The `image` job first shellchecks the scripts and validates the Compose file (`docker compose config`).
+- **Found while testing:**
+  - an unquoted `:` in `image:` that Compose refused to parse (now caught in CI);
+  - the first image-pruning rule (the newest three by build date) would have dropped the working version after failed deploys. It now keeps exactly the current image and the previous one.
+- **Verified locally:**
+  - The setup: a registry with a login, throwaway images, a separate project on port 1342. All 30 checks pass:
+    - a first deploy on an empty database (migrations ran), with the login ending afterwards;
+    - `api.env` taken raw;
+    - only `127.0.0.1` published, and no Postgres port;
+    - the memory limit;
+    - a staff account via `docker compose run`, and an upload that survives a new container;
+    - a crashing image, and one that never turns healthy, both back on the previous image;
+    - failing migrations leaving the API container untouched;
+    - pruning, then a plain `up -d`, then `down` and `up` with the data kept.
+  - The lock was checked on Ubuntu.
+  - The VPS's Compose v5.1.3 supports `format: raw`, memory limits and `--wait-timeout`.
 - **Rate limits:** the counters live in memory, per process. That's fine for one instance; switch the throttler to Redis before running more.
-- **Done when:** `docker compose up` on the VPS starts Postgres and the API on an empty database (migrations applied), and `/health` answers on `127.0.0.1:1339`.
+- **Done when:** the first CI deploy on the VPS starts Postgres and the API on an empty database (migrations applied), and `/health` answers on `127.0.0.1:1339`.
 
-**9.3 nginx for the API** (written now, switched on in 9.7)
+**9.3 nginx** (written now, switched on in 9.7)
 
-- **Proxy:** `api-simplefood.kozyr.info` proxies to `127.0.0.1:1339` with:
+- **As Hestia proxy templates** (9.0): new copies of `simplefood-api-proxy` and `simplefood-proxy` (`.tpl` for port 80, `.stpl` for 443) under new names. In 9.7, `v-change-web-domain-proxy-tpl dev <domain> <template>` switches each domain over, and the old templates go back the same way.
+- **The site:** drop the `/api/` and `/uploads/` locations that point at Strapi. Next's own `/api/auth/*` routes must reach the site. An old `/uploads/…` link on the site's domain redirects (301) to the API's domain.
+- **The API:** `api-simplefood.kozyr.info` proxies to `127.0.0.1:1339` with:
   - `proxy_set_header Host $host` (or the admin's sign-in refuses every request: `CROSS_ORIGIN_REQUEST`);
   - `X-Forwarded-For $proxy_add_x_forwarded_for` and `X-Forwarded-Proto $scheme`;
   - `client_max_body_size 11m` (uploads go up to 10 MB).
 - **`TRUST_PROXY_HOPS=1`** then gives the API the client's address, for requests through nginx and for the website's server calls alike. That requires the website to call the API at `127.0.0.1:1339` (9.5), not through nginx.
 - **Optional:** nginx serves `/uploads` directly from the volume, with the API's headers (immutable cache, `Cross-Origin-Resource-Policy: cross-origin`, `nosniff`).
-- **Done when:** the new vhost config is tested (`nginx -t`) and kept beside the current one, ready to swap.
+- **Done when:** both new templates are in place on the VPS, each tested on a throwaway domain or with `nginx -t`, ready to swap.
 
-**9.4 Mail** (C4)
+**9.4 Mail** (C4, Mailgun)
 
-- **Setup:** the provider account; the SPF, DKIM and DMARC records for the `MAIL_FROM` domain; the `SMTP_*` settings. `requireTLS` is on in production unless `SMTP_SECURE`.
-- **Done when:** a password-reset email from the rehearsal (9.6) reaches a real inbox (Gmail) with SPF and DKIM passing and not in spam, and its link opens `https://simplefood.kozyr.info/reset-password`.
+- **In Mailgun:** add the sending subdomain and turn tracking off for it. Create its SMTP credentials.
+- **DNS**, in Hostinger's panel (its nameservers serve `kozyr.info`; Hestia's zone has no effect): the TXT records Mailgun lists for it, SPF (`v=spf1 include:mailgun.org ~all`) and DKIM. No MX (the site only sends) and no tracking CNAME (tracking is off). Wait for Mailgun to show the domain as verified.
+- **DMARC:** a `_dmarc` TXT record for the domain: `v=DMARC1; p=none; rua=mailto:<an inbox>` to start, stricter once reports look clean.
+- **The API's settings:**
+  - `SMTP_HOST` (`smtp.mailgun.org` or `smtp.eu.mailgun.org`), `SMTP_PORT=587`, `SMTP_SECURE=false`;
+  - `SMTP_USER` and `SMTP_PASSWORD` (the domain's SMTP login);
+  - `MAIL_FROM` (a bare address, e.g. `no-reply@mg.kozyr.info`: the code adds the name "SimpleFood") and `MAIL_NOTIFY_TO` (the shop's inbox).
+- **Done when:** a password-reset email from the rehearsal (9.6) reaches a real inbox (Gmail) with SPF, DKIM and DMARC passing and not in spam, and its link opens `https://simplefood.kozyr.info/reset-password` (not a Mailgun redirect).
 
 **9.5 Website release** (prepared now, deployed in 9.7)
 
@@ -529,9 +599,9 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
   - `PROD_API_URL=http://127.0.0.1:1339`: the server's calls go straight to the API, so the forwarded client address stays right (9.3);
   - `NEXT_PUBLIC_API_URL=https://api-simplefood.kozyr.info`;
   - drop the old Strapi values.
-- **Node 24 for the website:** the deploy script runs `nvm install && nvm use` (`.nvmrc`). Strapi keeps its Node until it's retired.
-- **pm2:** starts the standalone server with `HOSTNAME=127.0.0.1` (C2).
-- **Deploy script:** it pulls `main`, so merging `feature/nest-api` into `main` is the release. Tag the current `main` as `pre-nest` first, for the rollback.
+- **Node 24 for the website:** only Node 20 is installed (9.0). The deploy script runs `nvm install && nvm use` (`.nvmrc`). Strapi keeps its Node until it's retired.
+- **pm2:** `pm2 restart` keeps a process's old Node and environment, so the release runs `pm2 delete simplefood-frontend` once and starts the standalone server again on Node 24 with `HOSTNAME=127.0.0.1` (C2), then `pm2 save`.
+- **Deploy script:** it pulls `main`, so merging `feature/nest-api` into `main` is the release.
 - **Done when:** the rehearsal build (9.6) with these settings works through nginx's address rules.
 
 **9.6 Rehearsal** (C7; repeat until it runs clean)
@@ -552,59 +622,49 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
 - **Then:** drop the rehearsal database and folders.
 - **Done when:** everything passes, the timing is known, and the runbook (9.7) is adjusted.
 
-**9.7 Cutover runbook** (C6)
+**9.7 Cutover runbook** (C6: any time, no maintenance page; steps 2–6 back to back)
 
-1. **The day before:**
-   - announce on the site and on social media;
-   - check that the latest Strapi `data.db` and uploads are backed up;
+1. **Before:**
    - put the website's new `.env` in place (it's only read at the next build);
    - have the staff list ready for `admin:create`.
-2. **Maintenance page:** nginx answers `simplefood.kozyr.info` with a static 503 page (the shop's phone number on it).
-3. **Freeze Strapi:** `pm2 stop simplefood-backend`. From here its data can't change. Archive `data.db` and `public/uploads`, with checksums.
-4. **Data:**
+2. **Freeze Strapi:** `pm2 stop simplefood-backend`. From here its data can't change. Archive `data.db` and `public/uploads`, with checksums, and keep the archive offline.
+3. **Data:**
    - `docker compose up -d postgres`, then migrations;
    - `import-strapi --dry-run` with the SQLite file and Strapi's uploads mounted read-only, then the real import into the empty production database;
    - compare the counts with the rehearsal's.
-5. **API:**
+4. **API:**
    - `docker compose up -d api`; check `/health` on `127.0.0.1:1339`;
    - create the staff accounts (`admin:create --name`).
-6. **Switch nginx** to the new API vhost (9.3) and reload. Check from outside:
+5. **Switch nginx** to the new templates (9.3) and reload. Check from outside:
    - `/health`, `/api/settings`, `/admin/` (sign in), an `/uploads/…` image;
    - CORS for the site's origin.
-7. **Release the website:** merge `feature/nest-api` into `main`; the workflow builds and restarts it. Check the homepage, a page and a news post.
-8. **Lift the maintenance page.** Then:
+6. **Release the website:** merge `feature/nest-api` into `main`; the workflow builds and restarts it. Check the homepage, a page and a news post.
+7. **Check end to end:**
    - place a real test order and a contact message, check both emails arrive, and decline the order in the admin;
    - sign in with a staff account.
-9. **Watch for an hour:** `docker compose logs`, pm2 logs, 5xx in nginx.
+8. **Watch for an hour:** `docker compose logs`, pm2 logs, 5xx in nginx.
 
-**9.8 Rollback** (if steps 4–8 fail in a way that can't be fixed in about 15 minutes, or within the 2 weeks)
+**9.8 After the switch**
 
-1. nginx back to the old vhost (port 1338); `pm2 start simplefood-backend`. Its `data.db` is untouched, because Strapi was stopped before the import.
-2. Website: deploy the `pre-nest` tag (or revert the merge); its old `.env` is kept as `.env.pre-nest`.
-3. Anything created in the new system meanwhile (orders, contact messages, new accounts) is listed from the admin and re-entered by hand. Keep the Postgres volume for that.
-
-**9.9 After the switch**
-
-- **Backups (C5):**
-  - nightly `pg_dump -Fc` plus the uploads volume, off-site, with the retention above;
-  - a restore test into a scratch database each month (and once right after the switch);
-  - the archived Strapi data is kept offline.
 - **Monitoring:** an uptime check on `https://api-simplefood.kozyr.info/health` and the homepage; disk-space alerts; Docker's log rotation (9.2).
 - **Customers:**
   - Strapi's sessions don't carry over: everyone signs in again, with the same password;
   - customers who used their username sign in with their email (the form says so);
   - password reset works now.
-- **After 2 weeks:**
-  - `pm2 delete simplefood-backend`;
-  - remove the Strapi checkout, its deploy workflow and its vhost backup;
-  - keep the final `data.db` and uploads archive offline;
-  - this plan: phase 9 done.
+- **Delete the Strapi instance** once the switch is checked (no rollback):
+  - `pm2 delete simplefood-backend` and `pm2 save`;
+  - remove its folder, `/home/dev/web/api-simplefood.kozyr.info/public_html` (the panel keeps the domain; only nginx's proxy target matters);
+  - delete the backend repo's deploy workflow, or archive the repo.
+
+  Recommended first: keep the final `data.db` and uploads archive (9.7, step 2) offline. It's the only source if an import mistake shows up later, and it costs nothing to keep.
+
+- **This plan:** phase 9 done.
 - **Later, not part of the switch:**
   - Redis for the rate limits before a second API instance;
   - a looser per-IP login cap on top of the per-account one (password spraying);
   - keying the refresh limit by session (phase 8 carry-over).
 
-**Phase 9 is done when:** the site and the admin run on the new stack at the same addresses; customers can sign in, order and reset passwords; emails arrive (SPF and DKIM pass); backups run and one restore was tested; monitoring is on; Strapi is stopped (and removed after 2 weeks).
+**Phase 9 is done when:** the site and the admin run on the new stack at the same addresses; customers can sign in, order and reset passwords; emails arrive (SPF, DKIM and DMARC pass); monitoring is on; the Strapi instance is deleted.
 
 ## Phases
 
@@ -645,7 +705,7 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
      - **Next 16.2 → 16.4.6:** `npm audit` reports a critical advisory for 16.2 (and 30 more, mostly transitive, `npm audit fix` resolves them).
      - **Refresh limits:** every full page load of a signed-in visitor refreshes (30/min per IP at the API). Behind nginx with `TRUST_PROXY_HOPS` that's per visitor; an office of customers behind one IP could hit it. Consider keying the refresh limit by session instead.
      - The "call me back" form in the header modal still does nothing (no API for it).
-9. **Cutover:** the production image, Postgres and the API on the VPS, the website release, and the switch with a rehearsal and a rollback: steps 9.0–9.9 and decisions C1–C7 under "Cutover (phase 9)".
+9. **Cutover:** the production image, Postgres and the API on the VPS, the website release, the rehearsal and the switch (no rollback; Strapi deleted afterwards): steps 9.0–9.8 and decisions C1–C7 under "Cutover (phase 9)".
 
 ## Verification
 

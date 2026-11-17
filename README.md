@@ -6,18 +6,18 @@ The migration is planned in phases in [docs/backend-migration-plan.md](docs/back
 
 ## Stack
 
-| Area      | Choice                                                                |
-| --------- | --------------------------------------------------------------------- |
-| Runtime   | Node.js 24 (`.nvmrc`)                                                 |
-| Framework | NestJS 12                                                             |
-| Database  | PostgreSQL 18, TypeORM 1.x, migrations only (never `synchronize`)     |
-| Logging   | `nestjs-pino`: JSON in production, pretty in development, request IDs |
-| Auth      | JWT access tokens (`@nestjs/jwt`), rotating refresh tokens, bcrypt    |
-| Limits    | `@nestjs/throttler` on the auth routes only (no global limit)         |
-| API docs  | `@nestjs/swagger` (OpenAPI 3)                                         |
+| Area      | Choice                                                                 |
+| --------- | ---------------------------------------------------------------------- |
+| Runtime   | Node.js 24 (`.nvmrc`)                                                  |
+| Framework | NestJS 12                                                              |
+| Database  | PostgreSQL 18, TypeORM 1.x, migrations only (never `synchronize`)      |
+| Logging   | `nestjs-pino`: JSON in production, pretty in development, request IDs  |
+| Auth      | JWT access tokens (`@nestjs/jwt`), rotating refresh tokens, bcrypt     |
+| Limits    | `@nestjs/throttler` on the auth routes only (no global limit)          |
+| API docs  | `@nestjs/swagger` (OpenAPI 3)                                          |
 | Admin app | react-admin 5 (React 19, MUI 9, Vite), in `admin/`, served at `/admin` |
-| Tests     | Jest, Supertest, Testcontainers                                       |
-| Quality   | TypeScript strict, oxlint, Prettier, GitHub Actions                   |
+| Tests     | Jest, Supertest, Testcontainers                                        |
+| Quality   | TypeScript strict, oxlint, Prettier, GitHub Actions                    |
 
 ## Requirements
 
@@ -244,7 +244,7 @@ src/
   contact/          POST /api/contact: saves the message, emails the shop (honeypot against bots)
   mail/             MailService (sends in the background, after the commit), the SMTP
                     transport, shared email template helpers (templates/)
-  health/           GET /health (Terminus)
+  health/           GET /health (Terminus); healthcheck.ts (next to main.ts) is the image's probe
   dashboard/        GET /api/admin/dashboard: the admin app's start page (counts)
   strapi-import/    the one-off Strapi import (npm run import:strapi): reader (node:sqlite),
                     importer, mappers, checks
@@ -269,6 +269,9 @@ admin/              the admin app (react-admin, its own package): src/providers 
                     src/theme.ts (light and dark themes), src/Branding.tsx (logo, sign-in page), scripts/smoke.mjs (browser smoke
                     test)
 docs/               migration plan
+scripts/            docker-smoke.sh: the production image's smoke test
+deploy/             production: compose.yaml, deploy.sh, the settings templates, README
+Dockerfile          the production image (API + admin app); .dockerignore is an allow-list
 ```
 
 ## Conventions
@@ -349,14 +352,52 @@ docs/               migration plan
 - **HTML from staff** goes through [src/common/html/sanitize.ts](src/common/html/sanitize.ts) before it is saved: `sanitizeRichHtml()` for text the site renders as HTML, `sanitizeEmbed()` for embed codes. Extend the allow-lists there, never bypass them.
 - **Logging:** use `new Logger(MyClass.name)` from `@nestjs/common`; it goes through pino automatically. The `Authorization`, `Cookie` and `Set-Cookie` headers are redacted, and SQL is logged without its parameters (they can hold emails and password hashes). Never log request bodies, tokens or hashes.
 
+## Production image
+
+The [Dockerfile](Dockerfile) builds one image with the API and the admin app. It runs on `node:24-alpine` as the user `node`, with plain `node dist/main.js` (no npm in the image).
+
+```bash
+docker build -t simplefood-api .
+scripts/docker-smoke.sh simplefood-api     # starts it next to a throwaway Postgres and checks it
+```
+
+- **Settings** come from the environment, like `.env` locally (see [Configuration](#configuration)); no `.env` file is ever in the image. Set in the image: `NODE_ENV=production`, `PORT=1339`, `UPLOADS_DIR=/app/uploads`, `ADMIN_DIST_DIR=/app/admin/dist`. Mount a volume at `/app/uploads`, or uploads are lost with the container.
+- **Run it with `--init`** (Compose: `init: true`), so `docker stop` ends it in about a second.
+- **Health:** the image's `HEALTHCHECK` runs `node dist/healthcheck.js` (GET `/health`: the API and its database).
+- **The admin app** is built for `https://simplefood.kozyr.info` (its "Open on the site" links). Another site: `--build-arg VITE_SITE_URL=…`.
+- **One-off commands** run in a container from the same image, with the same environment:
+
+  | Command                                                                          | What it does                                          |
+  | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+  | `node node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js` | Apply migrations                                      |
+  | `node dist/users/cli/create-admin.js --email <email> --name <name>`              | Create a staff account (`-it`: asks for the password) |
+  | `node dist/strapi-import/import-strapi.js --sqlite <file> --uploads <dir>`       | The Strapi import (mount both)                        |
+
+- **Architecture:** CI builds `linux/amd64`, the VPS's. A Mac with Apple silicon builds `arm64` unless told `--platform linux/amd64`.
+- **What [scripts/docker-smoke.sh](scripts/docker-smoke.sh) checks:**
+  - **The image:** it runs as `node`, holds no sources, `.env`, dev tools or npm, and the app can't change its own code.
+  - **Config:** bad config stops it, and the error names the problem without printing the secret.
+  - **Running it:** migrations run; it turns healthy; `/health`, `/api/products`, a 404's error shape and `/admin/` answer; Swagger is off.
+  - **Native modules:** a staff account and login (bcrypt), an image upload served from `/uploads` (sharp).
+  - **Logs and failure:** logs are JSON; the probe fails without the database; `docker stop` is quick.
+
 ## CI
 
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs on pull requests and pushes to `main`:
 
 - **API:** format check → typecheck → lint → build → unit tests → e2e tests (Testcontainers) → `npm audit` of production dependencies.
 - **Admin app** (`admin/`): format check → lint → typecheck and build → unit tests (Vitest) → `npm audit`. The browser smoke test runs by hand (it needs Chrome and a throwaway database).
+- **Image:** builds the production image for `linux/amd64` and runs `scripts/docker-smoke.sh` on it.
+- **Publish** (pushes to `main` only, once all three above pass): pushes the image to GHCR as `ghcr.io/<owner>/simplefood-api:<full commit SHA>`.
+- **Deploy** (after publish, once the repository variable `DEPLOY_ENABLED` is `true`): runs `deploy/deploy.sh` on the VPS over SSH. See [deploy/README.md](deploy/README.md).
 
-Dependabot opens weekly update PRs for npm packages and GitHub Actions.
+A newer push cancels a pull request's running CI, but on `main` it waits, so a deploy is never cut off halfway.
+
+Dependabot opens weekly update PRs for npm packages, GitHub Actions, the Node base image and the production Postgres image (patch and minor).
+
+## Deployment
+
+Production runs on one VPS with Docker Compose: [deploy/compose.yaml](deploy/compose.yaml) (Postgres and the API, the API on `127.0.0.1:1339` behind nginx) and [deploy/deploy.sh](deploy/deploy.sh). The script pulls an image, runs the migrations, replaces the API and waits until it's healthy; if it isn't, the previous image runs again. [deploy/README.md](deploy/README.md) covers the one-time setup, the GitHub secrets and the everyday commands.
 
 ## License
 

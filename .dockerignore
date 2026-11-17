@@ -13,5 +13,15 @@
 !tsconfig.json
 !tsconfig.build.json
 
+# The admin app, built inside the image too (never its node_modules or dist)
+!admin/package.json
+!admin/package-lock.json
+!admin/index.html
+!admin/tsconfig.json
+!admin/vite.config.ts
+!admin/public/
+!admin/src/
+
 # Not needed to build or run the app; CI runs the tests.
 src/**/*.spec.ts
+admin/src/**/*.test.ts

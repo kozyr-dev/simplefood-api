@@ -32,6 +32,26 @@ updates:
         dependency-type: development
         update-types: [minor, patch]
 
+  # The Node base image in the Dockerfile. Patch and minor releases only:
+  # the major follows .nvmrc, changed by hand.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types: ['version-update:semver-major']
+
+  # Postgres in the production Compose file. Patch and minor releases only:
+  # a major version needs a dump and restore.
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: postgres
+        update-types: ['version-update:semver-major']
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

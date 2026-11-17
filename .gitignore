@@ -11,6 +11,9 @@
 # Environment files: local secrets. Only the template is committed.
 .env*
 !.env.example
+# The production settings (deploy/README.md) live on the VPS only.
+*.env
+!*.env.example
 
 # Logs
 *.log

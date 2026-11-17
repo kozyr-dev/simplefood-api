@@ -73,13 +73,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
   }
 
   private toPayload(exception: unknown): ErrorPayload {
-    if (exception instanceof HttpException) {
-      return this.fromHttpException(exception);
-    }
-
-    const bodyParserError = this.fromBodyParserError(exception);
+    // Nest's Express adapter (12.3+) wraps the body parser's errors in an
+    // HttpException with the original as `cause`; earlier ones passed it raw.
+    const bodyParserError = this.fromBodyParserError(
+      exception instanceof HttpException ? exception.cause : exception,
+    );
     if (bodyParserError) {
       return bodyParserError;
+    }
+
+    if (exception instanceof HttpException) {
+      return this.fromHttpException(exception);
     }
 
     return error(HttpStatus.INTERNAL_SERVER_ERROR, 'Internal server error');
@@ -117,10 +121,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   /**
    * Express's body parser fails before Nest's routing. Malformed JSON is a
-   * SyntaxError, which Nest's Express adapter already turns into a
-   * BadRequestException (so it arrives above as an HttpException). Other
-   * parser errors (body too large, unsupported charset/encoding) arrive as-is:
-   * not HttpExceptions, but with a 4xx `status` and an `entity.*` `type`.
+   * SyntaxError, which Nest's Express adapter turns into a plain
+   * BadRequestException. Its other errors have a 4xx `status` and a `type`
+   * (`entity.too.large`, `charset.unsupported`, `encoding.unsupported`, ...);
+   * they get our own message, not the parser's wording.
    */
   private fromBodyParserError(exception: unknown): ErrorPayload | null {
     if (typeof exception !== 'object' || exception === null) return null;
@@ -128,7 +132,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const { status, type } = exception as { status?: unknown; type?: unknown };
     if (typeof status !== 'number' || status < 400 || status >= 500)
       return null;
-    if (typeof type !== 'string' || !type.startsWith('entity.')) return null;
+    if (typeof type !== 'string') return null;
 
     return error(
       status,
