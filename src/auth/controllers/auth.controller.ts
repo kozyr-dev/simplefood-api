@@ -57,7 +57,7 @@ export class AuthController {
   @ApiConflictResponse({
     type: ErrorResponseDto,
     description:
-      'The email (`EMAIL_TAKEN`) or username (`USERNAME_TAKEN`) is in use, in any letter case.',
+      'The email is in use, in any letter case (`EMAIL_TAKEN`). Names may repeat.',
   })
   async register(
     @Body() dto: RegisterDto,
@@ -65,11 +65,11 @@ export class AuthController {
     return { data: await this.auth.register(dto) };
   }
 
-  /** Logs in with email or username; starts a new session. */
+  /** Logs in with the email (names aren't unique); starts a new session. */
   @Public()
   @Post('login')
-  // Per IP and identifier; the 6th try in a minute blocks for 5 minutes.
-  @ThrottleBy('identifier')
+  // Per IP and email; the 6th try in a minute blocks for 5 minutes.
+  @ThrottleBy('email')
   @Throttle({
     default: { limit: 5, ttl: minutes(1), blockDuration: minutes(5) },
   })
@@ -79,7 +79,7 @@ export class AuthController {
   @ApiUnauthorizedResponse({
     type: ErrorResponseDto,
     description:
-      'Wrong identifier or password (`INVALID_CREDENTIALS`); the response does not say which.',
+      'Wrong email or password (`INVALID_CREDENTIALS`); the response does not say which.',
   })
   @ApiForbiddenResponse({
     type: ErrorResponseDto,

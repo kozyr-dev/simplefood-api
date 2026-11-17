@@ -5,7 +5,7 @@ import type { AdminUserDto } from '../dto/admin-user.dto';
 export function toAdminUserDto(user: User): AdminUserDto {
   return {
     id: user.id,
-    username: user.username,
+    name: user.name,
     email: user.email,
     emailVerified: user.emailVerifiedAt !== null,
     phone: user.phone,

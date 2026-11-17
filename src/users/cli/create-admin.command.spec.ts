@@ -33,7 +33,7 @@ describe('runCreateAdmin', () => {
   it.each([
     ['nothing', []],
     ['only an email', ['--email', 'a@example.com']],
-    ['only a username', ['--username', 'Admin']],
+    ['only a name', ['--name', 'Admin']],
     ['an unknown option', ['--promote', 'a@example.com', '--force']],
     ['a password on the command line', ['--password', 'secret']],
     [
@@ -57,7 +57,7 @@ describe('runCreateAdmin', () => {
     const run = io(); // a pipe, not a TTY
 
     const code = await runCreateAdmin(
-      ['--email', 'a@example.com', '--username', 'Admin'],
+      ['--email', 'a@example.com', '--name', 'Admin'],
       run.io,
       openContext,
     );
@@ -73,7 +73,7 @@ describe('runCreateAdmin', () => {
     const run = io(Readable.from(['\n']));
 
     const code = await runCreateAdmin(
-      ['--email', 'a@example.com', '--username', 'Admin', '--password-stdin'],
+      ['--email', 'a@example.com', '--name', 'Admin', '--password-stdin'],
       run.io,
       openContext,
     );
@@ -88,7 +88,7 @@ describe('runCreateAdmin', () => {
     openContext.mockRejectedValue(new Error('connect ECONNREFUSED'));
 
     const code = await runCreateAdmin(
-      ['--email', 'a@example.com', '--username', 'Admin', '--password-stdin'],
+      ['--email', 'a@example.com', '--name', 'Admin', '--password-stdin'],
       run.io,
       openContext,
     );

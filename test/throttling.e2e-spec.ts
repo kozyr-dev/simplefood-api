@@ -47,8 +47,8 @@ describe('Rate limits (e2e)', () => {
 
   const http = () => request(app.getHttpServer());
 
-  const login = (identifier: string, password = 'wrong password') =>
-    http().post('/api/auth/login').send({ identifier, password });
+  const login = (email: string, password = 'wrong password') =>
+    http().post('/api/auth/login').send({ email, password });
 
   /** Sends `count` requests one after another; their statuses. */
   async function statuses(count: number, send: () => request.Test) {
@@ -80,7 +80,7 @@ describe('Rate limits (e2e)', () => {
     jest.spyOn(Date, 'now').mockReturnValue(now + ms);
   }
 
-  describe('POST /auth/login: 5 per minute per IP and identifier', () => {
+  describe('POST /auth/login: 5 per minute per IP and email', () => {
     it('refuses the 6th try with 429, even with the right password', async () => {
       expect(await statuses(5, () => login('ivan@example.com'))).toEqual([
         401, 401, 401, 401, 401,
@@ -104,7 +104,7 @@ describe('Rate limits (e2e)', () => {
       await login('ivan@example.com', TEST_PASSWORD).expect(200);
     });
 
-    it('counts the identifier in any case and with spaces as one', async () => {
+    it('counts the email in any case and with spaces as one', async () => {
       await statuses(3, () => login(' IVAN@example.com '));
       await statuses(2, () => login('Ivan@Example.com'));
 

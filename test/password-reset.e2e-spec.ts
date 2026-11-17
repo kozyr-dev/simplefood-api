@@ -58,7 +58,7 @@ describe('Password reset (e2e)', () => {
   const login = (password: string) =>
     http()
       .post('/api/auth/login')
-      .send({ identifier: 'ivan@example.com', password });
+      .send({ email: 'ivan@example.com', password });
   const refresh = (refreshToken: string) =>
     http().post('/api/auth/refresh').send({ refreshToken });
 
@@ -140,8 +140,8 @@ describe('Password reset (e2e)', () => {
       expect((await mailbox(app)).sent).toEqual([]);
     });
 
-    it('takes an email, not a username', async () => {
-      await forgot(user.username).expect(400);
+    it('takes an email, not a name', async () => {
+      await forgot(user.name).expect(400);
     });
   });
 

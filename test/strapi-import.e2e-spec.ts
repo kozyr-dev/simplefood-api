@@ -697,11 +697,11 @@ describe('Strapi import (e2e)', () => {
 
     const res = await http()
       .post('/api/auth/login')
-      .send({ identifier: 'ivan@example.com', password: PASSWORD })
+      .send({ email: 'ivan@example.com', password: PASSWORD })
       .expect(200);
 
     expect(res.body.data.user).toMatchObject({
-      username: 'Ivan',
+      name: 'Ivan',
       emailVerified: false,
       phone: '+380 67 123 45 67',
       address: null,
@@ -754,7 +754,7 @@ describe('Strapi import (e2e)', () => {
 
     const login = await http()
       .post('/api/auth/login')
-      .send({ identifier: 'ivan@example.com', password: PASSWORD })
+      .send({ email: 'ivan@example.com', password: PASSWORD })
       .expect(200);
     const mine = await http()
       .get('/api/orders/me')

@@ -6,7 +6,7 @@ describe('TypeOrmLogger', () => {
   const logger = new TypeOrmLogger(['error', 'warn', 'migration']);
   const hash = '$2b$12$abcdefghijklmnopqrstuuJ3S3k9b8tq2wRtUhR2CwQ0xY1zN6mQ.';
   const insert =
-    'INSERT INTO "app_user"("username", "email", "password_hash") VALUES ($1, $2, $3)';
+    'INSERT INTO "app_user"("name", "email", "password_hash") VALUES ($1, $2, $3)';
 
   afterEach(() => {
     jest.restoreAllMocks();

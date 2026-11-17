@@ -51,7 +51,7 @@ export class ImageBannerSectionDto extends SectionDtoBase {
   @ApiProperty({ enum: [SectionType.ImageBanner] })
   type: SectionType.ImageBanner;
 
-  /** Markdown. */
+  /** HTML, sanitized when saved (`common/html/sanitize.ts`). */
   text: string | null;
 
   @ApiProperty({ type: ButtonDto, nullable: true })
@@ -126,7 +126,7 @@ export class VideoSectionDto extends SectionDtoBase {
   @ApiProperty({ enum: [SectionType.Video] })
   type: SectionType.Video;
 
-  /** Markdown. */
+  /** HTML, sanitized when saved (`common/html/sanitize.ts`). */
   description: string | null;
 
   /** Embeddable player URL. @example "https://www.youtube.com/embed/sTDscPFvehQ" */
@@ -162,7 +162,7 @@ export class ContentSectionDto extends SectionDtoBase {
   @ApiProperty({ enum: [SectionType.Content] })
   type: SectionType.Content;
 
-  /** Markdown. */
+  /** HTML, sanitized when saved (`common/html/sanitize.ts`). */
   content: string | null;
 
   @ApiProperty({ type: ButtonDto, nullable: true })
@@ -171,7 +171,7 @@ export class ContentSectionDto extends SectionDtoBase {
   @ApiProperty({ type: MediaDto, nullable: true })
   image: MediaDto | null;
 
-  /** Trusted HTML from editors (e.g. an `<iframe>`). */
+  /** One `<iframe>` from an allowed host (EMBED_HOSTS: maps, YouTube, Vimeo); sanitized when saved. */
   embedCode: string | null;
 }
 
@@ -179,13 +179,13 @@ export class ContactSectionDto extends SectionDtoBase {
   @ApiProperty({ enum: [SectionType.Contact] })
   type: SectionType.Contact;
 
-  /** Markdown. */
+  /** HTML, sanitized when saved (`common/html/sanitize.ts`). */
   content: string | null;
 
-  /** Markdown, shown in a second column. */
+  /** HTML, shown in a second column; sanitized when saved. */
   secondaryContent: string | null;
 
-  /** Trusted HTML from editors: the map `<iframe>`. */
+  /** The map: one `<iframe>` from an allowed host (EMBED_HOSTS); sanitized when saved. */
   mapEmbedCode: string | null;
 
   /** Show the contact form (`POST /api/contact`). */
@@ -198,6 +198,7 @@ export class PromoSectionDto extends SectionDtoBase {
   @ApiProperty({ enum: [SectionType.Promo] })
   type: SectionType.Promo;
 
+  /** Markdown. */
   text: string | null;
 
   @ApiProperty({ type: ButtonDto, nullable: true })

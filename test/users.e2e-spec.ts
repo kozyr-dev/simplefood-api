@@ -27,7 +27,7 @@ describe('Users (e2e)', () => {
     await resetDatabase(dataSource);
     resetRateLimits(app);
     user = await createUser(dataSource, {
-      username: 'Ivan Petrenko',
+      name: 'Ivan Petrenko',
       email: 'ivan@example.com',
       phone: '+380 67 123 45 67',
       address: 'Kyiv, Khreshchatyk St, 1',
@@ -70,7 +70,7 @@ describe('Users (e2e)', () => {
       expect(res.body).toEqual({
         data: {
           id: user.id,
-          username: 'Ivan Petrenko',
+          name: 'Ivan Petrenko',
           email: 'ivan@example.com',
           emailVerified: false,
           phone: '+380 67 123 45 67',
@@ -127,12 +127,12 @@ describe('Users (e2e)', () => {
   describe('PATCH /users/me', () => {
     it('changes the fields sent and keeps the others', async () => {
       const res = await patchMe({
-        username: 'Іван Петренко',
+        name: 'Іван Петренко',
         address: 'Lviv, Rynok Sq, 2',
       }).expect(200);
 
       expect(res.body.data).toMatchObject({
-        username: 'Іван Петренко',
+        name: 'Іван Петренко',
         email: 'ivan@example.com',
         phone: '+380 67 123 45 67',
         address: 'Lviv, Rynok Sq, 2',
@@ -158,12 +158,12 @@ describe('Users (e2e)', () => {
       expect((await stored()).updatedAt).toEqual(updatedAt);
     });
 
-    it('refuses null for username (400), changing nothing', async () => {
-      const res = await patchMe({ username: null, phone: null }).expect(400);
+    it('refuses null for name (400), changing nothing', async () => {
+      const res = await patchMe({ name: null, phone: null }).expect(400);
 
       expect(errorOf(res)).toMatchObject({
         code: 'BAD_REQUEST',
-        details: [{ field: 'username', messages: expect.any(Array) }],
+        details: [{ field: 'name', messages: expect.any(Array) }],
       });
       expect((await stored()).phone).toBe('+380 67 123 45 67');
     });
@@ -187,9 +187,9 @@ describe('Users (e2e)', () => {
       const other = await createUser(dataSource);
       const otherBefore = await stored(other.id);
 
-      await patchMe({ username: 'Renamed' }).expect(200);
+      await patchMe({ name: 'Renamed' }).expect(200);
 
-      expect((await stored()).username).toBe('Renamed');
+      expect((await stored()).name).toBe('Renamed');
       expect(await stored(other.id)).toEqual(otherBefore);
     });
 
@@ -201,14 +201,14 @@ describe('Users (e2e)', () => {
       async (_, change) => {
         await change(user.id);
 
-        await patchMe({ username: 'Renamed' }).expect(401);
+        await patchMe({ name: 'Renamed' }).expect(401);
       },
     );
 
     it('needs a login (401)', async () => {
       await request(app.getHttpServer())
         .patch('/api/users/me')
-        .send({ username: 'Renamed' })
+        .send({ name: 'Renamed' })
         .expect(401);
     });
 
@@ -248,13 +248,13 @@ describe('Users (e2e)', () => {
         await loginAs(app, { email: 'new@example.com' });
         await request(app.getHttpServer())
           .post('/api/auth/login')
-          .send({ identifier: 'ivan@example.com', password: TEST_PASSWORD })
+          .send({ email: 'ivan@example.com', password: TEST_PASSWORD })
           .expect(401);
       });
 
       it('needs no password when the email sent is the current one (a full form)', async () => {
         await patchMe({
-          username: 'Renamed',
+          name: 'Renamed',
           email: 'ivan@example.com',
           phone: '+380 67 123 45 67',
         }).expect(200);
@@ -262,18 +262,18 @@ describe('Users (e2e)', () => {
 
       it('checks a current password sent without an email change too', async () => {
         await patchMe({
-          username: 'Renamed',
+          name: 'Renamed',
           currentPassword: 'wrong password',
         }).expect(400);
 
-        expect((await stored()).username).toBe('Ivan Petrenko');
+        expect((await stored()).name).toBe('Ivan Petrenko');
       });
     });
 
-    describe('taken email or username', () => {
+    describe('taken email; shared name', () => {
       beforeEach(async () => {
         await createUser(dataSource, {
-          username: 'Taken Name',
+          name: 'Taken Name',
           email: 'taken@example.com',
         });
       });
@@ -291,11 +291,10 @@ describe('Users (e2e)', () => {
         });
       });
 
-      it('refuses a username in use, in any case (409 USERNAME_TAKEN)', async () => {
-        const res = await patchMe({ username: 'taken name' }).expect(409);
+      it("takes another account's name: names are not unique", async () => {
+        await patchMe({ name: 'Taken Name' }).expect(200);
 
-        expect(errorOf(res)).toMatchObject({ code: 'USERNAME_TAKEN' });
-        expect((await stored()).username).toBe('Ivan Petrenko');
+        expect((await stored()).name).toBe('Taken Name');
       });
     });
 
@@ -315,7 +314,7 @@ describe('Users (e2e)', () => {
       // The update runs on the transaction's repository, not the injected one.
       jest.spyOn(Repository.prototype, 'update').mockRejectedValueOnce(error);
 
-      const res = await patchMe({ username: 'Renamed' }).expect(500);
+      const res = await patchMe({ name: 'Renamed' }).expect(500);
 
       expect(errorOf(res)).toEqual({
         status: 500,

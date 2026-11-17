@@ -5,7 +5,7 @@ import type { User } from '../entities/user.entity';
 export function toUserDto(user: User): UserDto {
   return {
     id: user.id,
-    username: user.username,
+    name: user.name,
     email: user.email,
     // Boolean(): a User built in code may not have the column set at all.
     emailVerified: Boolean(user.emailVerifiedAt),

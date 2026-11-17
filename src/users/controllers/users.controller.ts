@@ -59,7 +59,7 @@ export class UsersController {
   @ApiConflictResponse({
     type: ErrorResponseDto,
     description:
-      'The email (`EMAIL_TAKEN`) or username (`USERNAME_TAKEN`) is in use, in any letter case.',
+      'The email is in use, in any letter case (`EMAIL_TAKEN`). Names may repeat.',
   })
   @ApiRateLimited()
   async updateMe(

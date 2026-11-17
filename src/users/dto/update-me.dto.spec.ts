@@ -21,7 +21,7 @@ describe('UpdateMeDto', () => {
   it('accepts any subset of the fields', async () => {
     expect(
       await invalid({
-        username: 'Іван',
+        name: 'Іван',
         phone: '+380 67 123 45 67',
         address: 'Kyiv, Khreshchatyk St, 1',
       }),
@@ -35,17 +35,17 @@ describe('UpdateMeDto', () => {
     expect(await invalid({ phone: null, address: null })).toEqual([]);
   });
 
-  it('refuses null for username and email: they are required columns', async () => {
-    expect(await invalid({ username: null, email: null })).toEqual([
-      'username',
+  it('refuses null for name and email: they are required columns', async () => {
+    expect(await invalid({ name: null, email: null })).toEqual([
+      'name',
       'email',
     ]);
   });
 
   it('still applies the registration rules to the fields sent', async () => {
     expect(
-      await invalid({ username: 'ivan@home', email: 'nope', phone: 'call me' }),
-    ).toEqual(['username', 'email', 'phone']);
+      await invalid({ name: 'I', email: 'nope', phone: 'call me' }),
+    ).toEqual(['name', 'email', 'phone']);
   });
 
   it.each([

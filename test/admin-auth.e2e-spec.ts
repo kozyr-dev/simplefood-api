@@ -54,11 +54,11 @@ describe('Admin app sessions (e2e)', () => {
 
   const http = () => request(app.getHttpServer());
 
-  const login = (identifier: string, password = TEST_PASSWORD) =>
+  const login = (email: string, password = TEST_PASSWORD) =>
     http()
       .post('/api/admin/auth/login')
       .set(SAME_ORIGIN)
-      .send({ identifier, password });
+      .send({ email, password });
 
   const refresh = (cookie?: AdminRefreshCookie) => {
     const req = http().post('/api/admin/auth/refresh').set(SAME_ORIGIN);
@@ -158,8 +158,9 @@ describe('Admin app sessions (e2e)', () => {
       },
     );
 
-    it('accepts the username too, in any letter case', async () => {
-      await login(editor.username.toUpperCase()).expect(200);
+    it('accepts the email in any letter case, never the name (400)', async () => {
+      await login(editor.email.toUpperCase()).expect(200);
+      await login(editor.name).expect(400);
     });
 
     it('refuses a customer with the right password: 403 NOT_STAFF, and no session', async () => {
@@ -181,8 +182,8 @@ describe('Admin app sessions (e2e)', () => {
       ],
     ])(
       'answers %s with 401 INVALID_CREDENTIALS',
-      async (_, identifier, password) => {
-        const res = await login(identifier(), password).expect(401);
+      async (_, email, password) => {
+        const res = await login(email(), password).expect(401);
 
         expect(errorOf(res)).toMatchObject({ code: 'INVALID_CREDENTIALS' });
         expect(adminRefreshCookie(res)).toBeUndefined();
@@ -202,7 +203,7 @@ describe('Admin app sessions (e2e)', () => {
       await http()
         .post('/api/admin/auth/login')
         .set(SAME_ORIGIN)
-        .send({ identifier: admin.email, password: TEST_PASSWORD, role: 'x' })
+        .send({ email: admin.email, password: TEST_PASSWORD, role: 'x' })
         .expect(400);
     });
   });
@@ -335,7 +336,7 @@ describe('Admin app sessions (e2e)', () => {
           .post(`/api/admin/auth/${path}`)
           .set({ Host: 'admin.test', ...headers })
           .set('Cookie', cookie.header)
-          .send({ identifier: admin.email, password: TEST_PASSWORD })
+          .send({ email: admin.email, password: TEST_PASSWORD })
           .expect(403);
 
         expect(errorOf(res)).toMatchObject({ code: 'CROSS_ORIGIN_REQUEST' });
@@ -351,7 +352,7 @@ describe('Admin app sessions (e2e)', () => {
         await http()
           .post('/api/admin/auth/login')
           .set({ Host: 'admin.test', Origin: 'https://evil.example' })
-          .send({ identifier: admin.email, password: 'wrong password' })
+          .send({ email: admin.email, password: 'wrong password' })
           .expect(403);
       }
 
@@ -360,7 +361,7 @@ describe('Admin app sessions (e2e)', () => {
   });
 
   describe('rate limits', () => {
-    it('blocks the 6th login in a minute per IP and identifier, for 5 minutes', async () => {
+    it('blocks the 6th login in a minute per IP and email, for 5 minutes', async () => {
       for (let i = 0; i < 5; i++) {
         await login(admin.email, 'wrong password').expect(401);
       }
@@ -392,7 +393,7 @@ describe('Admin app sessions (e2e)', () => {
   it("the public API's login is unchanged: customers in, refresh token in the body", async () => {
     const res = await http()
       .post('/api/auth/login')
-      .send({ identifier: customer.email, password: TEST_PASSWORD })
+      .send({ email: customer.email, password: TEST_PASSWORD })
       .expect(200);
 
     expect(res.body.data.refreshToken).toMatch(REFRESH_TOKEN);

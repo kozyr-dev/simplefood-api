@@ -15,7 +15,7 @@ export type StaffRole = 'admin' | 'editor';
 
 export interface StaffUser {
   id: string;
-  username: string;
+  name: string;
   email: string;
   role: StaffRole;
 }
@@ -75,12 +75,12 @@ async function authCall(path: string, body?: object): Promise<Response> {
   });
 }
 
-/** Signs in; the refresh cookie arrives with the answer. */
+/** Signs in with the email; the refresh cookie arrives with the answer. */
 export async function login(
-  identifier: string,
+  email: string,
   password: string,
 ): Promise<StaffUser> {
-  const res = await authCall('login', { identifier, password });
+  const res = await authCall('login', { email, password });
   if (!res.ok) throw await errorFrom(res);
   session = ((await res.json()) as { data: Session }).data;
   return session.user;

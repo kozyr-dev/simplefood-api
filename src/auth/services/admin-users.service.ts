@@ -38,14 +38,14 @@ export class AdminUsersService {
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
-  /** `q`: part of the username or email. */
+  /** `q`: part of the name or email. */
   async findAll(query: AdminUsersQueryDto): Promise<Paginated<AdminUserDto>> {
     const base: FindOptionsWhere<User> = {};
     if (query.id) base.id = In(query.id);
     if (query.role) base.role = query.role;
     if (query.blocked !== undefined) base.blocked = query.blocked;
     const where = query.q
-      ? (['username', 'email'] as const).map((field) => ({
+      ? (['name', 'email'] as const).map((field) => ({
           ...base,
           [field]: contains(query.q as string),
         }))

@@ -242,7 +242,7 @@ export async function createUser(
   const repository = dataSource.getRepository(User);
   return repository.save(
     repository.create({
-      username: `User ${n}`,
+      name: `User ${n}`,
       email: `user${n}@example.com`,
       passwordHash: await bcrypt.hash(password, 4),
       phone: null,

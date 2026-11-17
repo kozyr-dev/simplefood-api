@@ -111,4 +111,53 @@ describe('Migrations (e2e)', () => {
 
     expect((await applied()).length).toBe(dataSource.migrations.length);
   });
+
+  describe('UserNameNotUnique (names repeat, phase 8)', () => {
+    const MIGRATION = 'UserNameNotUnique1794853284240';
+    const addUser = (name: string, email: string) =>
+      dataSource.query(
+        `INSERT INTO app_user (name, email, password_hash) VALUES ($1, $2, 'x')`,
+        [name, email],
+      );
+
+    beforeEach(async () => {
+      await dataSource.query('DELETE FROM app_user');
+    });
+
+    it('is the newest migration (the tests below undo only the last one)', async () => {
+      expect((await applied()).at(-1)?.name).toBe(MIGRATION);
+    });
+
+    it('keeps the names through down() and up()', async () => {
+      await addUser('Олена Коваль', 'olena@example.com');
+
+      await dataSource.undoLastMigration({ transaction: 'each' });
+      expect(await dataSource.query('SELECT username FROM app_user')).toEqual([
+        { username: 'Олена Коваль' },
+      ]);
+
+      await dataSource.runMigrations({ transaction: 'each' });
+      expect(await dataSource.query('SELECT name FROM app_user')).toEqual([
+        { name: 'Олена Коваль' },
+      ]);
+    });
+
+    it("refuses down() once a name is shared or has an '@', changing nothing", async () => {
+      await addUser('Олена', 'first@example.com');
+      await addUser('олена', 'second@example.com');
+      await addUser('Ivan @ home', 'third@example.com');
+
+      await expect(
+        dataSource.undoLastMigration({ transaction: 'each' }),
+      ).rejects.toThrow(
+        "Can't restore unique usernames: 1 name(s) shared by several accounts, " +
+          '1 longer than 50 characters or with "@".',
+      );
+
+      expect((await applied()).at(-1)?.name).toBe(MIGRATION);
+      expect(
+        await dataSource.query('SELECT count(*)::int AS n FROM app_user'),
+      ).toEqual([{ n: 3 }]);
+    });
+  });
 });

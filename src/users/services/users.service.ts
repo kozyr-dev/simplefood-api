@@ -23,7 +23,7 @@ import { AccountTokensService } from './account-tokens.service';
 import { PasswordService } from './password.service';
 
 export interface NewUser {
-  username: string;
+  name: string;
   email: string;
   passwordHash: string;
   phone?: string | null;
@@ -33,20 +33,8 @@ export interface NewUser {
   emailVerifiedAt?: Date | null;
 }
 
-/** Which unique constraint a duplicate hit, and what the client is told. */
-const TAKEN = new Map([
-  [
-    'UQ_user_email',
-    {
-      code: 'EMAIL_TAKEN',
-      message: 'An account with this email already exists',
-    },
-  ],
-  [
-    'UQ_user_username',
-    { code: 'USERNAME_TAKEN', message: 'This username is already taken' },
-  ],
-]);
+/** The email's unique constraint: the only one on accounts (names repeat). */
+const EMAIL_UNIQUE = 'UQ_user_email';
 
 /**
  * The token's user no longer exists or was blocked since it was issued: the
@@ -97,8 +85,8 @@ export class UsersService {
 
   /**
    * Changes the fields sent. A new email needs the current password; a sent
-   * `currentPassword` is checked either way. A taken email or username is a
-   * 409, as at registration.
+   * `currentPassword` is checked either way. A taken email is a 409, as at
+   * registration.
    *
    * A new address is unverified: after the commit it gets a verification
    * link, and the old address a notice. A change of letter case only is the
@@ -177,23 +165,15 @@ export class UsersService {
     return user;
   }
 
-  /**
-   * For login: by email when the identifier has an `@`, by username
-   * otherwise (usernames can't contain one). Both are citext, so case doesn't
-   * matter. Loads `passwordHash`.
-   */
-  findByIdentifierWithPassword(identifier: string): Promise<User | null> {
-    const column = identifier.includes('@') ? 'email' : 'username';
-    return this.withPassword()
-      .where(`user.${column} = :identifier`, { identifier })
-      .getOne();
+  /** For login: by email, in any letter case (citext). Loads `passwordHash`. */
+  findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.withPassword().where('user.email = :email', { email }).getOne();
   }
 
   /**
    * Inserts an account (a customer unless `role` says otherwise). A
-   * duplicate email or username becomes a 409
-   * (`EMAIL_TAKEN` / `USERNAME_TAKEN`). The database decides, not a lookup
-   * first: two parallel registrations can't both pass.
+   * duplicate email becomes a 409 `EMAIL_TAKEN`. The database decides, not
+   * a lookup first: two parallel registrations can't both pass.
    */
   async create(
     data: NewUser,
@@ -254,13 +234,17 @@ export class UsersService {
   }
 }
 
-/** A ConflictException for a duplicate email or username, else null. */
+/** A ConflictException for a duplicate email, else null. */
 function toConflict(error: unknown): ConflictException | null {
   if (!(error instanceof QueryFailedError)) return null;
   const { code, constraint } = error.driverError as {
     code?: string;
     constraint?: string;
   };
-  const taken = code === '23505' && TAKEN.get(constraint ?? '');
-  return taken ? new ConflictException(taken) : null;
+  return code === '23505' && constraint === EMAIL_UNIQUE
+    ? new ConflictException({
+        code: 'EMAIL_TAKEN',
+        message: 'An account with this email already exists',
+      })
+    : null;
 }

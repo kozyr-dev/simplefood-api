@@ -160,7 +160,7 @@ export const orders: ResourceProps = {
           emptyText="Guest"
           link={false}
         >
-          <TextField source="username" />
+          <TextField source="name" />
         </ReferenceField>
         <OrderItems label="Items" />
         <FunctionField

@@ -3,6 +3,7 @@ import {
   Admin,
   CustomRoutes,
   Layout,
+  LoginWithEmail,
   Menu,
   Resource,
   type LayoutProps,
@@ -51,6 +52,8 @@ export function App() {
       authProvider={authProvider}
       dashboard={Dashboard}
       layout={AppLayout}
+      // Accounts log in by email only (names aren't unique).
+      loginPage={LoginWithEmail}
       // Follows the system's light or dark mode; the top bar has a toggle.
       lightTheme={lightTheme}
       darkTheme={darkTheme}

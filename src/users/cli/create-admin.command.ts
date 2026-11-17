@@ -18,7 +18,7 @@ import {
 
 export const USAGE = `Creates a staff account for the admin app, or gives an existing account a staff role.
 
-  npm run admin:create -- --email <email> --username <name> [--role admin|editor] [--password-stdin]
+  npm run admin:create -- --email <email> --name <name> [--role admin|editor] [--password-stdin]
   npm run admin:create -- --promote <email> [--role admin|editor]
 
 The role is admin unless --role says editor. The password is asked for twice
@@ -41,7 +41,7 @@ const STAFF_ROLES: readonly string[] = [UserRole.Admin, UserRole.Editor];
 /**
  * Runs `admin:create` and returns the exit code: 0 done (or nothing to
  * change), 1 refused or failed, 2 wrong usage. Never prints the email,
- * the username or the password. The application context (the database) is
+ * the name or the password. The application context (the database) is
  * opened only once the arguments and the password are in.
  */
 export async function runCreateAdmin(
@@ -60,7 +60,7 @@ export async function runCreateAdmin(
       args: argv,
       options: {
         email: { type: 'string' },
-        username: { type: 'string' },
+        name: { type: 'string' },
         promote: { type: 'string' },
         role: { type: 'string', default: UserRole.Admin },
         'password-stdin': { type: 'boolean', default: false },
@@ -79,14 +79,14 @@ export async function runCreateAdmin(
   }
   const role = values.role as StaffRole;
   const promoting = values.promote !== undefined;
-  if (promoting && (values.email || values.username)) {
-    return usage('--promote takes no --email or --username');
+  if (promoting && (values.email || values.name)) {
+    return usage('--promote takes no --email or --name');
   }
   if (promoting && values['password-stdin']) {
     return usage('--promote keeps the password: no --password-stdin');
   }
-  if (!promoting && (!values.email || !values.username)) {
-    return usage('Give --email and --username, or --promote');
+  if (!promoting && (!values.email || !values.name)) {
+    return usage('Give --email and --name, or --promote');
   }
 
   let password = '';
@@ -118,7 +118,7 @@ export async function runCreateAdmin(
       await createStaffAccount(
         { users, passwords: context.get(PasswordService) },
         {
-          username: values.username as string,
+          name: values.name as string,
           email: values.email as string,
           password,
           role,

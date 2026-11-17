@@ -6,7 +6,7 @@ export class UserDto {
   id: string;
 
   /** @example "Ivan Petrenko" */
-  username: string;
+  name: string;
 
   /** @example "ivan@example.com" */
   email: string;

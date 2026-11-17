@@ -127,7 +127,7 @@ const site = async (path) => (await (await fetch(`${API}${path}`)).json()).data;
 
 await check('signs in', async () => {
   await page.goto(ADMIN_URL, { waitUntil: 'domcontentloaded' });
-  await fill('input[name="username"]', ADMIN_EMAIL);
+  await fill('input[name="email"]', ADMIN_EMAIL);
   await fill('input[name="password"]', ADMIN_PASSWORD);
   await page.click('button[type="submit"]');
   await waitForText('Latest orders');
@@ -378,7 +378,7 @@ await check('changes the site settings; the site follows', async () => {
 
 await check('lists accounts (admins only)', async () => {
   await go('/users');
-  await listRows('username');
+  await listRows('name');
 });
 
 if (process.env.EDITOR_EMAIL) {
@@ -388,8 +388,8 @@ if (process.env.EDITOR_EMAIL) {
     const context = await browser.createBrowserContext();
     const editor = await context.newPage();
     await editor.goto(ADMIN_URL, { waitUntil: 'domcontentloaded' });
-    await editor.waitForSelector('input[name="username"]');
-    await editor.type('input[name="username"]', process.env.EDITOR_EMAIL);
+    await editor.waitForSelector('input[name="email"]');
+    await editor.type('input[name="email"]', process.env.EDITOR_EMAIL);
     await editor.type('input[name="password"]', ADMIN_PASSWORD);
     await editor.click('button[type="submit"]');
     await editor.waitForFunction(

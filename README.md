@@ -100,7 +100,7 @@ The API reads these variables. They are validated at startup in [src/config/env.
 | `npm run migration:create -- src/database/migrations/<Name>`    | Create an empty migration                                                    |
 | `npm run migration:run` / `migration:revert` / `migration:show` | Apply / undo the last / list migrations                                      |
 | `npm run import:strapi -- --sqlite <data.db> --uploads <dir>`   | Import the old Strapi site (see below)                                       |
-| `npm run admin:create -- --email <email> --username <name>`     | Create a staff account for the admin app (see below)                         |
+| `npm run admin:create -- --email <email> --name <name>`         | Create a staff account for the admin app (see below)                         |
 
 The migration scripts (except `create`) build first and use the TypeORM CLI entry point [src/database/data-source.ts](src/database/data-source.ts). That file loads `.env` and validates it with the same schema as the app.
 
@@ -174,14 +174,14 @@ npm run lint && npm run format:check
 Registration only ever creates customers. Staff accounts (`admin`, `editor`) come from a command, which runs from `dist/` with the same `.env`, like the migrations:
 
 ```bash
-npm run admin:create -- --email olena@example.com --username "Olena"      # an admin
-npm run admin:create -- --email ivan@example.com --username "Ivan" --role editor
+npm run admin:create -- --email olena@example.com --name "Olena"      # an admin
+npm run admin:create -- --email ivan@example.com --name "Ivan" --role editor
 npm run admin:create -- --promote someone@example.com [--role editor]     # an existing account
 npm run admin:create -- --help
 ```
 
 - **The password is asked for twice, without being shown.** It is never taken from the command line or the environment (shell history, `ps`). Without a terminal (a script, CI), pipe it in: `... --password-stdin < password-file`.
-- The same rules as registration (8 characters or more, at most 72 bytes; a free email and username). A created account's email counts as verified; `--promote` changes only the role, and refuses a blocked account.
+- The same rules as registration (8 characters or more, at most 72 bytes; a free email; names may repeat). A created account's email counts as verified; `--promote` changes only the role, and refuses a blocked account.
 - It prints only the outcome (`Created the admin account.`), never the email, the name or the password. Exit codes: 0 done, 1 refused or failed, 2 wrong usage.
 - In the production image: `node dist/users/cli/create-admin.js ...` (no `npm`, no build).
 - After that, admins change roles and block accounts in the app (Accounts). Nobody changes their own account there, and the shop always keeps one active admin.
@@ -205,7 +205,7 @@ npm run admin:create -- --help
 docker compose exec -T postgres sh -c 'createdb -U "$POSTGRES_USER" admin_check && pg_dump -U "$POSTGRES_USER" -Fc "$POSTGRES_DB" | pg_restore -U "$POSTGRES_USER" -d admin_check --no-owner'
 cp -R uploads /tmp/uploads-check
 npm run build && (cd admin && npm run build)
-printf '%s\n' "<a password>" | DB_NAME=admin_check node dist/users/cli/create-admin.js --email check@example.com --username Check --password-stdin
+printf '%s\n' "<a password>" | DB_NAME=admin_check node dist/users/cli/create-admin.js --email check@example.com --name Check --password-stdin
 DB_NAME=admin_check UPLOADS_DIR=/tmp/uploads-check PORT=1341 node dist/main.js &
 cd admin && ADMIN_URL=http://localhost:1341/admin/ ADMIN_EMAIL=check@example.com ADMIN_PASSWORD="<a password>" \
   SMOKE_THROWAWAY_DATABASE=yes npm run smoke
@@ -307,7 +307,7 @@ docs/               migration plan
   - **Ownership comes from the token:** a route for the caller's own data uses `@CurrentUser()`, never an id from the URL (`/users/me`, not `/users/:id`).
   - Document a protected route with `@ApiAuth()`, so Swagger shows the lock and the 401.
   - `@OptionalAuth()` serves guests and logged-in callers alike: no header means a guest, but a token that is sent must be valid (401 otherwise, so the client refreshes instead of carrying on as a guest). Read the caller with `@CurrentUser({ optional: true })`.
-  - **Rate limits:** a route that checks a password, creates accounts or sends mail gets `@UseGuards(AuthThrottlerGuard)` with its own `@Throttle()`, plus `@ApiRateLimited()` for the docs. A logged-in caller is counted per account, a guest per IP; `@ThrottleBy('email')` counts a guest per IP and that body field instead (login: `identifier`). There is no global limit: every server-rendered page reaches the API from the Next server's single IP.
+  - **Rate limits:** a route that checks a password, creates accounts or sends mail gets `@UseGuards(AuthThrottlerGuard)` with its own `@Throttle()`, plus `@ApiRateLimited()` for the docs. A logged-in caller is counted per account, a guest per IP; `@ThrottleBy('email')` counts a guest per IP and that body field instead (login: `email`). There is no global limit: every server-rendered page reaches the API from the Next server's single IP.
   - Responses that carry tokens or personal data get `@NoStore()` (`Cache-Control: no-store`).
   - **Cookies:** the API sets one, the admin app's refresh token. A route that acts on a cookie gets `SameOriginGuard` (a browser attaches cookies to requests other sites start; the `Origin` check refuses those). The helpers in [src/common/http/cookies.ts](src/common/http/cookies.ts) read and write it; there is no cookie-parser.
 - **Entities and responses:** controllers never return entities; they map them to response DTOs (e.g. `toMediaDto()`). Primary keys are UUIDv7 from Postgres (`AppBaseEntity`).

@@ -18,7 +18,7 @@ export const PASSWORD_BYTES_MESSAGE = `$property must be at most ${PASSWORD_MAX_
  * rejected with 400 instead of being ignored.
  */
 export class RegisterDto extends PickType(UserFieldsDto, [
-  'username',
+  'name',
   'email',
   'phone',
 ] as const) {

@@ -4,7 +4,7 @@ import { UserFieldsDto } from './user-fields.dto';
 
 /**
  * PATCH /users/me: only the fields sent change. `null` clears `phone` or
- * `address`; for `username` and `email` it's a 400
+ * `address`; for `name` and `email` it's a 400
  * (`skipNullProperties: false` keeps validating null).
  *
  * No `role` or `blocked`: `forbidNonWhitelisted` refuses them with 400.

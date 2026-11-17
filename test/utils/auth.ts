@@ -18,7 +18,7 @@ export async function loginAs(
 ): Promise<AuthResultDto> {
   const res = await request(app.getHttpServer())
     .post('/api/auth/login')
-    .send({ identifier: user.email, password })
+    .send({ email: user.email, password })
     .expect(200);
   return (res.body as { data: AuthResultDto }).data;
 }
@@ -75,7 +75,7 @@ export async function adminLoginAs(
   const res = await request(app.getHttpServer())
     .post('/api/admin/auth/login')
     .set(SAME_ORIGIN)
-    .send({ identifier: user.email, password })
+    .send({ email: user.email, password })
     .expect(200);
   return {
     session: (res.body as { data: AdminSessionDto }).data,

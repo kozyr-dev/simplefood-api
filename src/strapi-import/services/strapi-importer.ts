@@ -478,7 +478,7 @@ export class StrapiImporter {
       }
       const saved = await users.save(
         users.create({
-          username: str(row.username),
+          name: str(row.username),
           email: str(row.email),
           passwordHash: str(row.password),
           phone: textOrNull(row.phone),

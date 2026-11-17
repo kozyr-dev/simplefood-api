@@ -101,7 +101,7 @@ describe('Auth (e2e)', () => {
     it('forbids caching every response that carries tokens', async () => {
       const user = await createUser(dataSource);
       const login = await post('login', {
-        identifier: user.email,
+        email: user.email,
         password: TEST_PASSWORD,
       }).expect(200);
       const { refreshToken, accessToken } = (
@@ -110,7 +110,7 @@ describe('Auth (e2e)', () => {
       const responses = [
         login,
         await post('register', {
-          username: 'Someone New',
+          name: 'Someone New',
           email: 'new@example.com',
           password: TEST_PASSWORD,
         }).expect(201),
@@ -130,7 +130,7 @@ describe('Auth (e2e)', () => {
 
   describe('POST /auth/register', () => {
     const body = {
-      username: 'Ivan Petrenko',
+      name: 'Ivan Petrenko',
       email: 'Ivan@Example.com',
       password: 'correct horse',
       phone: '+380 67 123 45 67',
@@ -147,7 +147,7 @@ describe('Auth (e2e)', () => {
         refreshTokenExpiresAt: expect.stringMatching(ISO_DATE),
         user: {
           id: expect.stringMatching(/^[0-9a-f-]{36}$/),
-          username: 'Ivan Petrenko',
+          name: 'Ivan Petrenko',
           email: 'Ivan@Example.com',
           emailVerified: false,
           phone: '+380 67 123 45 67',
@@ -176,11 +176,11 @@ describe('Auth (e2e)', () => {
       );
 
       await post('login', {
-        identifier: body.email,
+        email: body.email,
         password: '  spaced out  ',
       }).expect(200);
       await post('login', {
-        identifier: body.email,
+        email: body.email,
         password: 'spaced out',
       }).expect(401);
     });
@@ -190,7 +190,7 @@ describe('Auth (e2e)', () => {
 
       const res = await post('register', {
         ...body,
-        username: 'Someone Else',
+        name: 'Someone Else',
         email: 'ivan@EXAMPLE.com',
       }).expect(409);
 
@@ -201,23 +201,26 @@ describe('Auth (e2e)', () => {
       });
     });
 
-    it('refuses a username that differs only in case: 409 USERNAME_TAKEN', async () => {
+    it('lets accounts share a name, in any case: only the email is unique', async () => {
       await post('register', body).expect(201);
 
-      const res = await post('register', {
+      await post('register', {
         ...body,
-        username: 'IVAN petrenko',
         email: 'other@example.com',
-      }).expect(409);
+      }).expect(201);
+      await post('register', {
+        ...body,
+        name: 'IVAN petrenko',
+        email: 'third@example.com',
+      }).expect(201);
 
-      expect(errorOf(res)).toMatchObject({ code: 'USERNAME_TAKEN' });
+      expect(await users.count()).toBe(3);
     });
 
     it('lets only one of two parallel registrations with one email through', async () => {
       const statuses = await Promise.all(
         ['First', 'Second'].map(
-          async (username) =>
-            (await post('register', { ...body, username })).status,
+          async (name) => (await post('register', { ...body, name })).status,
         ),
       );
 
@@ -253,7 +256,7 @@ describe('Auth (e2e)', () => {
 
     it('refuses an invalid body with every problem listed (400)', async () => {
       const res = await post('register', {
-        username: 'ivan@home',
+        name: 'I',
         email: 'not-an-email',
         password: 'ж'.repeat(37),
       }).expect(400);
@@ -264,7 +267,7 @@ describe('Auth (e2e)', () => {
       );
       expect(fields).toHaveLength(3);
       expect(fields).toEqual(
-        expect.arrayContaining(['username', 'email', 'password']),
+        expect.arrayContaining(['name', 'email', 'password']),
       );
     });
   });
@@ -274,7 +277,7 @@ describe('Auth (e2e)', () => {
 
     beforeEach(async () => {
       user = await createUser(dataSource, {
-        username: 'Ivan Petrenko',
+        name: 'Ivan Petrenko',
         email: 'ivan@example.com',
       });
     });
@@ -282,11 +285,9 @@ describe('Auth (e2e)', () => {
     it.each([
       ['the email', 'ivan@example.com'],
       ['the email in another case', 'IVAN@Example.COM'],
-      ['the username', 'Ivan Petrenko'],
-      ['the username in another case', 'ivan petrenko'],
-    ])('logs in with %s (200)', async (_, identifier) => {
+    ])('logs in with %s (200)', async (_, email) => {
       const res = await post('login', {
-        identifier,
+        email,
         password: TEST_PASSWORD,
       }).expect(200);
       const { data } = res.body as { data: AuthResultDto };
@@ -299,20 +300,45 @@ describe('Auth (e2e)', () => {
       });
     });
 
+    it('refuses the name instead of the email (400): names are not unique', async () => {
+      const res = await post('login', {
+        email: 'Ivan Petrenko',
+        password: TEST_PASSWORD,
+      }).expect(400);
+
+      expect(errorOf(res)).toMatchObject({
+        code: 'BAD_REQUEST',
+        details: [
+          { field: 'email', messages: ['email must be an email address'] },
+        ],
+      });
+    });
+
+    it('refuses the old identifier field (400)', async () => {
+      const res = await post('login', {
+        identifier: 'ivan@example.com',
+        password: TEST_PASSWORD,
+      }).expect(400);
+
+      expect(
+        (res.body.error.details as { field: string }[]).map((d) => d.field),
+      ).toEqual(expect.arrayContaining(['email', 'identifier']));
+    });
+
     it('answers a wrong password and an unknown user with the same 401', async () => {
       const wrongPassword = await post('login', {
-        identifier: 'ivan@example.com',
+        email: 'ivan@example.com',
         password: 'wrong password',
       }).expect(401);
       const unknownUser = await post('login', {
-        identifier: 'nobody@example.com',
+        email: 'nobody@example.com',
         password: TEST_PASSWORD,
       }).expect(401);
 
       expect(errorOf(wrongPassword)).toEqual({
         status: 401,
         code: 'INVALID_CREDENTIALS',
-        message: 'Invalid email/username or password',
+        message: 'Invalid email or password',
       });
       expect(errorOf(unknownUser)).toEqual(errorOf(wrongPassword));
     });
@@ -321,7 +347,7 @@ describe('Auth (e2e)', () => {
       await users.update(user.id, { blocked: true });
 
       const right = await post('login', {
-        identifier: user.email,
+        email: user.email,
         password: TEST_PASSWORD,
       }).expect(403);
       expect(errorOf(right)).toEqual({
@@ -330,7 +356,7 @@ describe('Auth (e2e)', () => {
         message: 'This account is blocked',
       });
       await post('login', {
-        identifier: user.email,
+        email: user.email,
         password: 'wrong password',
       }).expect(401);
       expect(await tokens.count()).toBe(0);
@@ -619,7 +645,7 @@ describe('Auth (e2e)', () => {
       await refresh(data.refreshToken).expect(200);
       // Only the new password logs in now.
       await post('login', {
-        identifier: user.email,
+        email: user.email,
         password: TEST_PASSWORD,
       }).expect(401);
       await loginAs(app, user, NEW_PASSWORD);

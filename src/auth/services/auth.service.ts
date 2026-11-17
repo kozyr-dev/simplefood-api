@@ -29,10 +29,10 @@ import {
   type IssuedRefreshToken,
 } from './refresh-tokens.service';
 
-/** Same answer for an unknown identifier and a wrong password. */
+/** Same answer for an unknown email and a wrong password. */
 function invalidCredentials(): UnauthorizedException {
   return new UnauthorizedException({
-    message: 'Invalid email/username or password',
+    message: 'Invalid email or password',
     code: 'INVALID_CREDENTIALS',
   });
 }
@@ -76,10 +76,10 @@ export class AuthService {
 
   /**
    * Creates a customer and logs them in; a verification link goes to the
-   * email after the commit. 409 for a taken email/username.
+   * email after the commit. 409 for a taken email.
    */
   async register({
-    username,
+    name,
     email,
     password,
     phone,
@@ -90,7 +90,7 @@ export class AuthService {
     const { user, result, verificationToken } =
       await this.dataSource.transaction(async (manager) => {
         const created = await this.users.create(
-          { username, email, passwordHash, phone: phone ?? null },
+          { name, email, passwordHash, phone: phone ?? null },
           manager,
         );
         return {
@@ -266,15 +266,12 @@ export class AuthService {
   }
 
   /**
-   * The account behind a correct identifier and password: 401
+   * The account behind a correct email and password: 401
    * `INVALID_CREDENTIALS` otherwise, 403 `ACCOUNT_BLOCKED` for a blocked one.
    * Upgrades a weak hash on the way.
    */
-  private async checkCredentials({
-    identifier,
-    password,
-  }: LoginDto): Promise<User> {
-    const user = await this.users.findByIdentifierWithPassword(identifier);
+  private async checkCredentials({ email, password }: LoginDto): Promise<User> {
+    const user = await this.users.findByEmailWithPassword(email);
     const hash = user?.passwordHash;
     // Unknown users are checked against a dummy hash: same time, same 401.
     const matches = await this.passwords.verify(password, hash);

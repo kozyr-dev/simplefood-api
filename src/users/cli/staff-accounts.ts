@@ -26,7 +26,7 @@ export interface StaffAccountServices {
 }
 
 export interface NewStaffAccount {
-  username: string;
+  name: string;
   email: string;
   password: string;
   role: StaffRole;
@@ -38,22 +38,22 @@ export class StaffAccountError extends Error {
 }
 
 class StaffFieldsDto extends PickType(UserFieldsDto, [
-  'username',
+  'name',
   'email',
 ] as const) {}
 
 /**
  * Creates a staff account. Its email counts as verified: the operator
  * typed it in. Throws StaffAccountError for invalid fields, a weak or
- * over-long password, or a taken email or username.
+ * over-long password, or a taken email.
  */
 export async function createStaffAccount(
   { users, passwords }: StaffAccountServices,
-  { username, email, password, role }: NewStaffAccount,
+  { name, email, password, role }: NewStaffAccount,
 ): Promise<void> {
   // Trimmed like every request body (TrimPipe); the password never is.
   const fields = plainToInstance(StaffFieldsDto, {
-    username: username.trim(),
+    name: name.trim(),
     email: email.trim(),
   });
   const errors = await validate(fields, {
@@ -71,7 +71,7 @@ export async function createStaffAccount(
 
   try {
     await users.create({
-      username: fields.username,
+      name: fields.name,
       email: fields.email,
       passwordHash: await passwords.hash(password),
       role,

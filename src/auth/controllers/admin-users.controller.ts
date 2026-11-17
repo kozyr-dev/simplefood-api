@@ -37,7 +37,7 @@ import type { AuthUser } from '../types/auth.types';
 export class AdminUsersController {
   constructor(private readonly users: AdminUsersService) {}
 
-  /** `q`: username or email; filters: role, blocked. */
+  /** `q`: name or email; filters: role, blocked. */
   @Get()
   @ApiPaginatedResponse(AdminUserDto)
   findAll(

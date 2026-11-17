@@ -18,23 +18,26 @@ export const PHONE_MESSAGE =
  * picks some (auth's RegisterDto), PATCH /users/me takes them all as
  * optional (UpdateMeDto). Never a request body itself.
  *
- * The entity's CHECK constraints repeat the username and email rules for
+ * The entity's CHECK constraints repeat the name and email rules for
  * writers that skip the DTOs (the data migration, the admin CLI).
  */
 export class UserFieldsDto {
   /**
-   * Shown in the UI. Letters of any script, digits and spaces; no `@`
-   * (login tells email and username apart by it).
+   * The person's name, shown in the UI and offered at checkout. Any script;
+   * not unique. At most 100 characters, like an order's name.
    * @example "Ivan Petrenko"
    */
   @IsString()
-  @Length(2, 50)
-  @Matches(/^[^@\p{Cc}]+$/u, {
-    message: 'username must not contain "@" or control characters',
+  @Length(2, 100)
+  @Matches(/^[^\p{Cc}]+$/u, {
+    message: 'name must not contain control characters',
   })
-  username: string;
+  name: string;
 
-  /** @example "ivan@example.com" */
+  /**
+   * Unique, in any letter case; the account's login.
+   * @example "ivan@example.com"
+   */
   @IsEmail()
   @MaxLength(254)
   email: string;

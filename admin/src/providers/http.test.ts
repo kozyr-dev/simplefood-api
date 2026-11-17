@@ -17,7 +17,7 @@ const urlOf = (input: RequestInfo | URL) =>
 
 const USER = {
   id: 'u1',
-  username: 'Olena',
+  name: 'Olena',
   email: 'o@example.com',
   role: 'editor',
 };
@@ -60,6 +60,11 @@ describe('http', () => {
     await apiFetch('/admin/products');
 
     expect(urls()).toEqual(['/api/admin/auth/login', '/api/admin/products']);
+    // Accounts log in by email only.
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      email: 'o@example.com',
+      password: 'secret',
+    });
     expect(authHeader(1)).toBe('Bearer t1');
     expect(currentUser()).toEqual(USER);
   });

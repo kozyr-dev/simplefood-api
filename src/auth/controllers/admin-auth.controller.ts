@@ -89,8 +89,8 @@ export class AdminAuthController {
   /** Logs a staff member in: the access token here, the refresh token in the cookie. */
   @Public()
   @Post('login')
-  // As /auth/login: per IP and identifier, the 6th try in a minute blocks for 5.
-  @ThrottleBy('identifier')
+  // As /auth/login: per IP and email, the 6th try in a minute blocks for 5.
+  @ThrottleBy('email')
   @Throttle({
     default: { limit: 5, ttl: minutes(1), blockDuration: minutes(5) },
   })
@@ -100,7 +100,7 @@ export class AdminAuthController {
   @ApiUnauthorizedResponse({
     type: ErrorResponseDto,
     description:
-      'Wrong identifier or password (`INVALID_CREDENTIALS`); the response does not say which.',
+      'Wrong email or password (`INVALID_CREDENTIALS`); the response does not say which.',
   })
   @ApiForbiddenResponse({
     type: ErrorResponseDto,

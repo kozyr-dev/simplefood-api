@@ -19,7 +19,7 @@ import { createTestApp } from './utils/test-app';
 import { resetRateLimits } from './utils/throttler';
 
 const EMAIL = 'olena.admin@example.com';
-const USERNAME = 'Olena Admin';
+const NAME = 'Olena Admin';
 const PASSWORD = '  a long admin secret  ';
 
 /** A fake terminal on stdin: `type()` sends keys once the prompt listens. */
@@ -78,7 +78,7 @@ describe('npm run admin:create (e2e)', () => {
     );
 
   const create = (extra: string[] = []) =>
-    run(['--email', EMAIL, '--username', USERNAME, ...extra]);
+    run(['--email', EMAIL, '--name', NAME, ...extra]);
 
   const findUser = () =>
     users
@@ -89,7 +89,7 @@ describe('npm run admin:create (e2e)', () => {
 
   /** Nothing personal is ever printed. */
   const expectNothingPersonalPrinted = () => {
-    for (const secret of [EMAIL, USERNAME, PASSWORD.trim()]) {
+    for (const secret of [EMAIL, NAME, PASSWORD.trim()]) {
       expect(out + err).not.toContain(secret);
     }
   };
@@ -98,7 +98,7 @@ describe('npm run admin:create (e2e)', () => {
   // command's own module, with the test environment (this worker's database).
   it('runs with its own module, as `npm run admin:create` does', async () => {
     const code = await runCreateAdmin(
-      ['--email', EMAIL, '--username', USERNAME, '--password-stdin'],
+      ['--email', EMAIL, '--name', NAME, '--password-stdin'],
       io(Readable.from([`${PASSWORD}\n`])),
       openUsersCliContext,
     );
@@ -119,7 +119,7 @@ describe('npm run admin:create (e2e)', () => {
       expect(err).toBe('');
       const user = await findUser();
       expect(user).toMatchObject({
-        username: USERNAME,
+        name: NAME,
         role: UserRole.Admin,
         blocked: false,
         emailVerifiedAt: expect.any(Date),
@@ -131,7 +131,7 @@ describe('npm run admin:create (e2e)', () => {
       await request(app.getHttpServer())
         .post('/api/admin/auth/login')
         .set(SAME_ORIGIN)
-        .send({ identifier: EMAIL, password: PASSWORD })
+        .send({ email: EMAIL, password: PASSWORD })
         .expect(200);
       expectNothingPersonalPrinted();
     });
@@ -143,18 +143,18 @@ describe('npm run admin:create (e2e)', () => {
       expect((await findUser())?.role).toBe(UserRole.Editor);
     });
 
-    it('trims the email and username, like every request body', async () => {
-      expect(
-        await run(['--email', ` ${EMAIL} `, '--username', ` ${USERNAME} `]),
-      ).toBe(0);
+    it('trims the email and name, like every request body', async () => {
+      expect(await run(['--email', ` ${EMAIL} `, '--name', ` ${NAME} `])).toBe(
+        0,
+      );
 
-      expect(await findUser()).toMatchObject({ username: USERNAME });
+      expect(await findUser()).toMatchObject({ name: NAME });
     });
 
     it('asks for the password twice on a terminal, showing nothing', async () => {
       const stdin = terminal();
       const done = runCreateAdmin(
-        ['--email', EMAIL, '--username', USERNAME],
+        ['--email', EMAIL, '--name', NAME],
         io(stdin),
         context,
       );
@@ -170,7 +170,7 @@ describe('npm run admin:create (e2e)', () => {
     it('refuses passwords that differ, and creates nothing', async () => {
       const stdin = terminal();
       const done = runCreateAdmin(
-        ['--email', EMAIL, '--username', USERNAME],
+        ['--email', EMAIL, '--name', NAME],
         io(stdin),
         context,
       );
@@ -182,41 +182,38 @@ describe('npm run admin:create (e2e)', () => {
       expect(await users.count()).toBe(0);
     });
 
-    it.each([
-      [
-        'an email in use (in any letter case)',
-        'An account with this email already exists',
-      ],
-      ['a username in use', 'This username is already taken'],
-    ])('refuses %s', async (what, message) => {
-      await createUser(
-        dataSource,
-        what.startsWith('an email')
-          ? { email: EMAIL.toUpperCase() }
-          : { username: USERNAME },
-      );
+    it('refuses an email in use (in any letter case)', async () => {
+      await createUser(dataSource, { email: EMAIL.toUpperCase() });
 
       expect(await create()).toBe(1);
 
-      expect(err).toBe(`Refused: ${message}.\n`);
+      expect(err).toBe('Refused: An account with this email already exists.\n');
       expect(await users.count()).toBe(1);
+    });
+
+    it("takes a name another account has: names aren't unique", async () => {
+      await createUser(dataSource, { name: NAME });
+
+      expect(await create()).toBe(0);
+
+      expect(await users.count()).toBe(2);
     });
 
     it.each([
       [
         'an invalid email',
-        ['--email', 'not-an-email', '--username', USERNAME],
+        ['--email', 'not-an-email', '--name', NAME],
         'email must be an email',
       ],
       [
-        'a username with "@"',
-        ['--email', EMAIL, '--username', 'a@b'],
-        'username must not contain "@"',
+        'a name with a control character',
+        ['--email', EMAIL, '--name', 'Olena\u0007'],
+        'name must not contain control characters',
       ],
       [
-        'a one-letter username',
-        ['--email', EMAIL, '--username', 'A'],
-        'username must be longer than or equal to 2 characters',
+        'a one-letter name',
+        ['--email', EMAIL, '--name', 'A'],
+        'name must be longer than or equal to 2 characters',
       ],
     ])('refuses %s', async (_, argv, message) => {
       expect(await run(argv)).toBe(1);
@@ -229,9 +226,7 @@ describe('npm run admin:create (e2e)', () => {
       ['shorter than 8 characters', 'short12', 'at least 8 characters'],
       ['over 72 bytes', 'й'.repeat(37), 'at most 72 bytes'],
     ])('refuses a password %s', async (_, password, message) => {
-      expect(
-        await run(['--email', EMAIL, '--username', USERNAME], password),
-      ).toBe(1);
+      expect(await run(['--email', EMAIL, '--name', NAME], password)).toBe(1);
 
       expect(err).toContain(message);
       expect(await users.count()).toBe(0);

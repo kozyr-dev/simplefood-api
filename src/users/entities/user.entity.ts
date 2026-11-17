@@ -22,27 +22,23 @@ export function isStaff(role: UserRole): boolean {
  * returns the current database role).
  *
  * The checks repeat the DTO rules for writers that skip the DTOs (the data
- * migration, the admin CLI). An email always has an `@` and a username never does,
- * so login by "email or username" can never match two different users.
+ * migration, the admin CLI). The email is the only unique field and the
+ * only way to log in; the name is just a name (phase 8, F6/F7).
  */
 @Entity('app_user')
 @Unique('UQ_user_email', ['email'])
-@Unique('UQ_user_username', ['username'])
 @Check(
   'CHK_app_user_email',
   `char_length("email") <= 254 AND position('@' in "email") > 1`,
 )
-@Check(
-  'CHK_app_user_username',
-  `char_length("username") BETWEEN 2 AND 50 AND position('@' in "username") = 0`,
-)
+@Check('CHK_app_user_name', `char_length("name") BETWEEN 2 AND 100`)
 export class User extends AppBaseEntity {
   /**
-   * Shown in the UI; letters of any script and spaces are allowed (Strapi
-   * usernames have both). citext: unique regardless of case.
+   * The person's name, shown in the UI and offered at checkout. Not unique:
+   * two customers may share one. Strapi's usernames became these names.
    */
-  @Column({ type: 'citext' })
-  username: string;
+  @Column({ type: 'varchar', length: 100 })
+  name: string;
 
   /** citext (EnableCitext migration): `Ivan@Mail.com` and `ivan@mail.com` are one account. */
   @Column({ type: 'citext' })

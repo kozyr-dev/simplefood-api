@@ -16,7 +16,7 @@ async function invalid(cls: new () => object, body: object) {
 
 describe('RegisterDto', () => {
   const valid = {
-    username: 'Ivan Petrenko',
+    name: 'Ivan Petrenko',
     email: 'ivan@example.com',
     password: 'correct horse',
   };
@@ -31,23 +31,27 @@ describe('RegisterDto', () => {
   it.each([
     ['Cyrillic and spaces', 'Іван Петренко'],
     ['2 characters', 'Ів'],
-    ['50 characters', 'x'.repeat(50)],
+    ['100 characters (as an order name)', 'x'.repeat(100)],
     ['digits and punctuation', "O'Brien-2"],
-  ])('accepts a username with %s', async (_, username) => {
-    expect(await invalid(RegisterDto, { ...valid, username })).toEqual([]);
+    ['an @ (names never log in)', 'Ivan @ home'],
+  ])('accepts a name with %s', async (_, name) => {
+    expect(await invalid(RegisterDto, { ...valid, name })).toEqual([]);
   });
 
   it.each([
     ['1 character', 'x'],
-    ['51 characters', 'x'.repeat(51)],
-    ['an @ (would look like an email at login)', 'ivan@home'],
+    ['101 characters', 'x'.repeat(101)],
     ['a control character', 'Ivan\u0000'],
     ['a newline', 'Ivan\nPetrenko'],
     ['a number instead of a string', 42],
-  ])('refuses a username with %s', async (_, username) => {
-    expect(await invalid(RegisterDto, { ...valid, username })).toEqual([
-      'username',
-    ]);
+  ])('refuses a name with %s', async (_, name) => {
+    expect(await invalid(RegisterDto, { ...valid, name })).toEqual(['name']);
+  });
+
+  it('refuses the old username field', async () => {
+    expect(
+      await invalid(RegisterDto, { ...valid, name: undefined, username: 'x' }),
+    ).toEqual(['username', 'name']);
   });
 
   it.each([
@@ -97,20 +101,48 @@ describe('RegisterDto', () => {
 describe('LoginDto', () => {
   it('accepts any non-empty password: no length rules for old accounts', async () => {
     expect(
-      await invalid(LoginDto, { identifier: 'ivan', password: 'short' }),
+      await invalid(LoginDto, { email: 'ivan@example.com', password: 'short' }),
     ).toEqual([]);
   });
 
+  it('accepts an address only as strict as the database: an @ inside', async () => {
+    expect(
+      await invalid(LoginDto, { email: 'ivan@localhost', password: 'secret' }),
+    ).toEqual([]);
+  });
+
+  const email = 'ivan@example.com';
   it.each([
-    ['an empty identifier', { identifier: '', password: 'secret' }],
-    ['an empty password', { identifier: 'ivan', password: '' }],
+    [
+      'a name instead of an email',
+      { email: 'Ivan', password: 'secret' },
+      ['email'],
+    ],
+    [
+      'the old identifier field',
+      { identifier: email, password: 'secret' },
+      ['identifier', 'email'],
+    ],
+    ['an empty email', { email: '', password: 'secret' }, ['email']],
+    [
+      'an email with a space',
+      { email: 'ivan @example.com', password: 'secret' },
+      ['email'],
+    ],
+    [
+      'a 255-character email',
+      { email: `${'x'.repeat(243)}@example.com`, password: 'secret' },
+      ['email'],
+    ],
+    ['an empty password', { email, password: '' }, ['password']],
     [
       'a 257-character password',
-      { identifier: 'ivan', password: 'x'.repeat(257) },
+      { email, password: 'x'.repeat(257) },
+      ['password'],
     ],
-    ['no password', { identifier: 'ivan' }],
-  ])('refuses %s', async (_, body) => {
-    expect(await invalid(LoginDto, body)).toHaveLength(1);
+    ['no password', { email }, ['password']],
+  ])('refuses %s', async (_, body, failing) => {
+    expect(await invalid(LoginDto, body)).toEqual(failing);
   });
 });
 

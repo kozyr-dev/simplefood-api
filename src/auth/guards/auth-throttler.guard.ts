@@ -17,7 +17,7 @@ type ThrottledRequest = AuthRequest & { ip?: string; body?: unknown };
  * - a logged-in caller: their account, from any IP, so a stolen access token
  *   can't spread password guesses over many addresses;
  * - with `@ThrottleBy(field)`: the IP and that body field, e.g. login's
- *   `identifier`, so one client failing logins can't lock everyone behind
+ *   `email`, so one client failing logins can't lock everyone behind
  *   the same IP out, and the emails one address receives stay capped;
  * - otherwise: the IP.
  */

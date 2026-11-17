@@ -51,7 +51,7 @@ describe('Admin API: users and access (e2e)', () => {
 
   it('lists accounts without their password hash; searches and filters', async () => {
     await createUser(dataSource, {
-      username: 'Олена',
+      name: 'Олена',
       email: 'olena@example.com',
     });
     await createUser(dataSource, { role: UserRole.Editor, blocked: true });
@@ -89,7 +89,7 @@ describe('Admin API: users and access (e2e)', () => {
     const login = () =>
       request(app.getHttpServer())
         .post('/api/auth/login')
-        .send({ identifier: editor.email, password: 'correct horse battery' });
+        .send({ email: editor.email, password: 'correct horse battery' });
     await login().expect(403);
     await admin.patch(`users/${editor.id}`, { blocked: false }).expect(200);
     await login().expect(200);

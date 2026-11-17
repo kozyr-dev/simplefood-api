@@ -276,7 +276,7 @@ describe('Logging and request IDs (e2e)', () => {
 
       await http()
         .post('/api/auth/register')
-        .send({ username: 'Olena', email, password })
+        .send({ name: 'Olena', email, password })
         .expect(201);
       const token = linkToken((await mailbox(app)).sent.at(-1));
       const verify = () =>

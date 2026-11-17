@@ -70,7 +70,7 @@ export const users: ResourceProps = {
       exporter={false}
     >
       <Datagrid rowClick="edit" bulkActionButtons={false}>
-        <TextField source="username" />
+        <TextField source="name" />
         <EmailField source="email" />
         <TextField source="role" />
         <BooleanField source="blocked" sortable={false} />
@@ -97,7 +97,7 @@ export const users: ResourceProps = {
         }
       >
         <Labeled>
-          <TextField source="username" />
+          <TextField source="name" />
         </Labeled>
         <Labeled>
           <EmailField source="email" />
@@ -114,5 +114,5 @@ export const users: ResourceProps = {
       </SimpleForm>
     </Edit>
   ),
-  recordRepresentation: 'username',
+  recordRepresentation: 'name',
 };

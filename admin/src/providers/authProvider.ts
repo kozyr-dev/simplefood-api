@@ -9,8 +9,9 @@ const ADMIN_ONLY = new Set(['users']);
  * nothing: checkAuth() asks for a new access token with the cookie.
  */
 export const authProvider: AuthProvider = {
-  async login({ username, password }: { username: string; password: string }) {
-    await login(username, password);
+  /** From LoginWithEmail (App.tsx): accounts log in by email only. */
+  async login({ email, password }: { email: string; password: string }) {
+    await login(email, password);
   },
 
   logout,
@@ -29,7 +30,7 @@ export const authProvider: AuthProvider = {
   async getIdentity() {
     const user = currentUser();
     if (!user) throw new Error('Signed out');
-    return { id: user.id, fullName: user.username };
+    return { id: user.id, fullName: user.name };
   },
 
   async getPermissions() {

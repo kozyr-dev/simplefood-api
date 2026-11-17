@@ -75,22 +75,22 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 
 ## Data model (TypeORM entities)
 
-| Entity                      | Key columns / relations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `User`                      | table **`app_user`** (`user` is reserved in Postgres); email and username **`citext`**, unique regardless of case; username 2–50 characters, any script and spaces, no `@` or control characters (a DB check repeats the DTO rule); passwordHash (bcrypt, `select: false`; Strapi's `$2a$10$` hashes are kept and re-hashed at the next login); phone, address (≤ 500); role enum `customer\|editor\|admin`; blocked; **emailVerifiedAt** (nullable; cleared when the email changes to another address); timestamps |
-| `RefreshToken`              | user ManyToOne (`ON DELETE CASCADE`), **familyId** (one login session), tokenHash (SHA-256, unique; the token itself is never stored), expiresAt (idle 7d), familyExpiresAt (30d max), revokedAt (set on rotation, logout and revocation; kept for reuse detection)                                                                                                                                                                                                                                                 |
-| `Media`                     | url (relative, `/uploads/<random>.jpg`), **name** (the uploader's file name), mime, size, width, height, alt, `formats` jsonb (`large`/`medium`/`small`/`thumbnail`: url, width, height), folder                                                                                                                                                                                                                                                                                                                    |
-| `ProductCategory`           | name, slug (unique), position                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `Product`                   | slug, title, description, image → Media, weight, **calories**, **price `integer` in kopiykas** (exact sums; `pg` returns `numeric` as a string), available, featured, favorite, categories ManyToMany (join table `product_to_category`)                                                                                                                                                                                                                                                                            |
-| `Order`                     | table **`customer_order`** (`order` is reserved in SQL); **number** (identity `GENERATED ALWAYS`, unique: the readable order number); user ManyToOne (nullable, `ON DELETE SET NULL`), name, email, phone, address (required for delivery: DB check), shippingMethod enum `delivery\|pickup`, comments, status enum `new\|processing\|declined\|completed` (transitions in `canTransition()`), subtotal (kopiykas, ≥ 0), `legacyDishesText` (migrated orders only)                                                  |
-| `OrderItem`                 | order ManyToOne (`ON DELETE CASCADE`), **position** (unique per order), product ManyToOne (nullable, `ON DELETE SET NULL`), **snapshot** title + unitPrice, quantity (> 0), lineTotal (a DB check: `unit_price * quantity`)                                                                                                                                                                                                                                                                                         |
-| `BlogCategory` / `BlogPost` | name/slug; title, slug, text (markdown), image → Media, seo (embedded), categories ManyToMany, publishedAt                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `Page`                      | slug (unique; the homepage is simply the page with slug `home`), title, seo (embedded), publishedAt                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `PageSection`               | page ManyToOne, position, `type` enum (10 types), `data` jsonb validated per type (class-validator DTO per type); references stored as ids (productIds, categoryId, blogCategoryId, mediaIds) and **resolved on read**                                                                                                                                                                                                                                                                                              |
-| `Menu` / `MenuItem`         | key `header\|footer\|dropdown`; title, link, className, group `main\|list`, position                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `SiteSettings`              | single row: siteName, phone, address, workingHours, takingOrdersHours, facebook, instagram, seo                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `ContactSubmission`         | name (≤ 100), email, message (1–5000, DB check), handledAt                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `AccountToken`              | single-use links sent by email: user ManyToOne (`ON DELETE CASCADE`), purpose enum `password_reset\|email_verification`, tokenHash (SHA-256, unique; the token is never stored), **email** (the address the link went to: a changed email voids it), expiresAt (1 h / 48 h), usedAt                                                                                                                                                                                                                                 |
+| Entity                      | Key columns / relations                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`                      | table **`app_user`** (`user` is reserved in Postgres); email **`citext`**, unique regardless of case, the only login; **name** 2–100 characters, not unique, any characters but control ones (a DB check repeats the length; until phase 8.1 it was a unique `username`, 2–50, without `@`); passwordHash (bcrypt, `select: false`; Strapi's `$2a$10$` hashes are kept and re-hashed at the next login); phone, address (≤ 500); role enum `customer\|editor\|admin`; blocked; **emailVerifiedAt** (nullable; cleared when the email changes to another address); timestamps |
+| `RefreshToken`              | user ManyToOne (`ON DELETE CASCADE`), **familyId** (one login session), tokenHash (SHA-256, unique; the token itself is never stored), expiresAt (idle 7d), familyExpiresAt (30d max), revokedAt (set on rotation, logout and revocation; kept for reuse detection)                                                                                                                                                                                                                                                                                                          |
+| `Media`                     | url (relative, `/uploads/<random>.jpg`), **name** (the uploader's file name), mime, size, width, height, alt, `formats` jsonb (`large`/`medium`/`small`/`thumbnail`: url, width, height), folder                                                                                                                                                                                                                                                                                                                                                                             |
+| `ProductCategory`           | name, slug (unique), position                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `Product`                   | slug, title, description, image → Media, weight, **calories**, **price `integer` in kopiykas** (exact sums; `pg` returns `numeric` as a string), available, featured, favorite, categories ManyToMany (join table `product_to_category`)                                                                                                                                                                                                                                                                                                                                     |
+| `Order`                     | table **`customer_order`** (`order` is reserved in SQL); **number** (identity `GENERATED ALWAYS`, unique: the readable order number); user ManyToOne (nullable, `ON DELETE SET NULL`), name, email, phone, address (required for delivery: DB check), shippingMethod enum `delivery\|pickup`, comments, status enum `new\|processing\|declined\|completed` (transitions in `canTransition()`), subtotal (kopiykas, ≥ 0), `legacyDishesText` (migrated orders only)                                                                                                           |
+| `OrderItem`                 | order ManyToOne (`ON DELETE CASCADE`), **position** (unique per order), product ManyToOne (nullable, `ON DELETE SET NULL`), **snapshot** title + unitPrice, quantity (> 0), lineTotal (a DB check: `unit_price * quantity`)                                                                                                                                                                                                                                                                                                                                                  |
+| `BlogCategory` / `BlogPost` | name/slug; title, slug, text (markdown), image → Media, seo (embedded), categories ManyToMany, publishedAt                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `Page`                      | slug (unique; the homepage is simply the page with slug `home`), title, seo (embedded), publishedAt                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `PageSection`               | page ManyToOne, position, `type` enum (10 types), `data` jsonb validated per type (class-validator DTO per type); references stored as ids (productIds, categoryId, blogCategoryId, mediaIds) and **resolved on read**                                                                                                                                                                                                                                                                                                                                                       |
+| `Menu` / `MenuItem`         | key `header\|footer\|dropdown`; title, link, className, group `main\|list`, position                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `SiteSettings`              | single row: siteName, phone, address, workingHours, takingOrdersHours, facebook, instagram, seo                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `ContactSubmission`         | name (≤ 100), email, message (1–5000, DB check), handledAt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `AccountToken`              | single-use links sent by email: user ManyToOne (`ON DELETE CASCADE`), purpose enum `password_reset\|email_verification`, tokenHash (SHA-256, unique; the token is never stored), **email** (the address the link went to: a changed email voids it), expiresAt (1 h / 48 h), usedAt                                                                                                                                                                                                                                                                                          |
 
 `Seo` is an embedded TypeORM class (`seo_title`, `seo_description`, `seo_share_image_id` → Media, `ON DELETE SET NULL`), used by settings, pages and blog posts. `shareImage` fixes the frontend's dead OG-image code path.
 
@@ -106,7 +106,7 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 - `GET /api/blog-posts?category=<slug>&page=&pageSize=`: published posts only, newest first; items carry an `excerpt`, not the full text.
 - `GET /api/blog-posts/:slug`: drafts and scheduled posts are a 404, like unknown slugs.
 - `GET /api/blog-categories`
-- `POST /api/auth/register` (201) and `POST /api/auth/login`: `{data: {accessToken, expiresIn, refreshToken, refreshTokenExpiresAt, user}}`.
+- `POST /api/auth/register` (201) and `POST /api/auth/login` (`{email, password}`: by email only, since phase 8.1): `{data: {accessToken, expiresIn, refreshToken, refreshTokenExpiresAt, user}}`.
 - `POST /api/auth/refresh`: a new pair; the token sent is used up. A used token sent again after a 10 s grace window ends its whole session (reuse detection).
 - `POST /api/auth/logout`: 204, ends that session (also for an unknown token).
 - `POST /api/auth/change-password` (login needed): ends every session and returns a new pair; a notice goes to the account's email.
@@ -114,7 +114,7 @@ Versions: Node 24 everywhere (`.nvmrc`, Docker, CI). NestJS 12, TypeORM 1.x on `
 - `POST /api/auth/reset-password {token, newPassword}`: 204; ends every session, marks the email verified, sends a notice; doesn't log in. An unusable token is 400 `INVALID_TOKEN`.
 - `POST /api/auth/verify-email {token}`: 204 (no login needed); the link `{FRONTEND_URL}/verify-email#token=…` (48 hours) is emailed at registration, after an email change, and by `POST /api/auth/resend-verification` (login needed; 204, nothing sent once verified).
 - `GET /api/users/me`, `PATCH /api/users/me`: `emailVerified` in the profile. Changing the email needs `currentPassword`; the new address gets a verification link and the old one a notice (a change of letter case only is the same address).
-- Every route needs `Authorization: Bearer <accessToken>` unless it's marked `@Public()` (or `@OptionalAuth()`: `POST /orders`). Rate limits (no global limit): login 5/min per IP + identifier, then a 5-minute block; register 10/hour per IP; refresh and logout 30/min per IP; change-password 5/min and `PATCH /users/me` 10/min per account; orders 10/hour per account (guests per IP); contact 5/hour and forgot-password 3/hour per IP + email; reset-password and verify-email 10/hour per IP; resend-verification 3/hour per account. A 429 carries `Retry-After`.
+- Every route needs `Authorization: Bearer <accessToken>` unless it's marked `@Public()` (or `@OptionalAuth()`: `POST /orders`). Rate limits (no global limit): login 5/min per IP + email, then a 5-minute block; register 10/hour per IP; refresh and logout 30/min per IP; change-password 5/min and `PATCH /users/me` 10/min per account; orders 10/hour per account (guests per IP); contact 5/hour and forgot-password 3/hour per IP + email; reset-password and verify-email 10/hour per IP; resend-verification 3/hour per account. A 429 carries `Retry-After`.
 - `POST /api/orders` with body `{items:[{productId, quantity}], name, phone, email, address, shippingMethod, comments}` (201). The server loads prices, rejects unknown or unavailable products (409 `PRODUCTS_UNAVAILABLE` with the bad lines in `details`), and computes totals; a client-sent price is a 400. Guests may also order: a token is optional (but must be valid if sent) and `email` is required. The shop and the customer are emailed.
 - `GET /api/orders/me`: the caller's order history, newest first, paginated (new feature). Linked by the token at order time, never by email.
 - `POST /api/media` (admins and editors; multipart `file`, optional `alt`, `folder`): 201 `MediaDto`. JPEG, PNG or WebP by content (415 otherwise), ≤ 10 MB (413), ≤ 40 megapixels and not animated (400 `INVALID_IMAGE`); stored upright, ≤ 2560 px, without metadata, with Strapi's sizes. `PATCH /api/media/:id {alt, folder}`, `DELETE /api/media/:id` (204; whatever showed the image shows none). 100 uploads/hour per account.
@@ -132,11 +132,11 @@ The OpenAPI spec comes from `@nestjs/swagger` at `/api/docs`. Optionally, genera
 - **D3 Admin endpoints** live in their domain module (`catalog/controllers/admin-products.controller.ts`); shared pieces in `common/admin/`.
 - **D4 List contract:** `page`, `pageSize` (≤ 100), `sort` (allow-list, always including `id`: react-admin's reference inputs sort by it), `order`, `q`, `id` (repeatable: getMany), per-resource filters; `{data, meta}`; flat references (`imageId`, `categoryIds`).
 - **D5 Sessions** (step 7.0, done): `/api/admin/auth/login|refresh|logout`, staff only; the refresh token in an `HttpOnly`, `SameSite=Strict` cookie scoped to `/api/admin/auth` (`Secure` in production); the access token in the app's memory; same-origin `Origin` required.
-- **D6 Roles.** Editors: content, media, orders, contact messages, settings. Admins: also users, and deleting contact messages. `@Roles()` on the server; `authProvider.canAccess` only hides UI. *(Built as proposed; the user hadn't answered. Changing it is one `@Roles()` and one line in `canAccess`.)*
+- **D6 Roles.** Editors: content, media, orders, contact messages, settings. Admins: also users, and deleting contact messages. `@Roles()` on the server; `authProvider.canAccess` only hides UI. _(Built as proposed; the user hadn't answered. Changing it is one `@Roles()` and one line in `canAccess`.)_
 - **D7 Prices** stay in kopiykas in the API; the admin's money input shows and parses hryvnias exactly.
 - **D8 Order status** through `POST /api/admin/orders/:id/status`, `canTransition()`, and a conditional update (one of two concurrent changes wins, 409). No create, edit or delete.
 - **D9 Reordering** sections and menu items: one `PUT …/order {ids}` per list, in a transaction.
-- **D10 HTML from staff is sanitized on write** (`sanitize-html` 2.18, allow-list built from the imported content and the rich-text editor's output): product descriptions and the section fields the site renders with `dangerouslySetInnerHTML` (image-banner text, video description, content, contact content and second column). Embed codes accept only `<iframe>`s over https from Google Maps, YouTube or Vimeo. Markdown fields (posts, promo, benefits) stay as written: the site's react-markdown never renders raw HTML. *(Built as proposed; the hosts list is `EMBED_HOSTS` in `common/html/sanitize.ts`.)*
+- **D10 HTML from staff is sanitized on write** (`sanitize-html` 2.18, allow-list built from the imported content and the rich-text editor's output): product descriptions and the section fields the site renders with `dangerouslySetInnerHTML` (image-banner text, video description, content, contact content and second column). Embed codes accept only `<iframe>`s over https from Google Maps, YouTube or Vimeo. Markdown fields (posts, promo, benefits) stay as written: the site's react-markdown never renders raw HTML. _(Built as proposed; the hosts list is `EMBED_HOSTS` in `common/html/sanitize.ts`.)_
 - **D11** An audit log line per admin write (admin id, route, record id; never the body); admin responses `no-store`.
 - **D12** `disableTelemetry` (react-admin pings marmelab.com otherwise); no external scripts or fonts; the CSP is unchanged.
 - **D13** `npm run admin:create` (step 7.0, done): staff accounts from the command line; the password from a hidden prompt or `--password-stdin`, never argv or env.
@@ -157,29 +157,270 @@ A one-off import, compiled with the app (it uses the entities) and run from `dis
 - **Checks** (before commit): per-entity counts, products with an image, product-category links, every page's section types and order, menu items, the sum of order totals. A difference stops the import and saves nothing.
 - **Real data** (2026-11-10): 79 media, 14 categories, 41 products (all with an image), 1 blog category, 2 posts, settings, 10 + 5 + 8 menu items, 10 pages with 42 sections, 4 users, 7 orders, 4 contact messages. No warnings.
 
-## Frontend changes (`frontend/`)
+## Frontend changes (`frontend/`, phase 8)
 
-- `src/shared/utils/helpers/api.ts`: rename `getStrapiURL` to `getApiURL`, drop the bracket-heavy `qs` usage and keep the envelope handling.
-- Entity API and type files: `src/entities/{Options,Menu,Product,PageData,BlogData,PostData,User,Order}/{api,types|model}`. Switch to the new endpoints and camelCase fields. The components that read `Body/Title/Name/Benefit/menuItem` (`SectionWizard`, the menu widgets, `NewsWidget`, `ProductList`) need their fields renamed.
-- `src/features/Auth/api/authenticatedFetch.ts`: rename the token fields (`jwt` → `accessToken`), and **make concurrent requests share one refresh** (a second refresh with the same token gets a 401).
-- `app/api/auth/{login,register,refresh,logout}/route.ts`: point at the new endpoints.
-  - Keep the refresh token in the httpOnly cookie: `maxAge` from `refreshTokenExpiresAt`, path narrowed to `/api/auth`. Store the new token after every refresh (the old one is used up).
-  - `register` must strip the refresh token from what it returns to the browser, like `login`.
-  - `logout` must send the refresh token to the API, so the session ends on the server.
-  - Forward `X-Forwarded-For`, or the API sees only the Next server's IP.
-- Consider keeping the access token in memory instead of `localStorage`.
-- The password form → `POST /auth/change-password`; the minimum password length is now 8 (was 7).
-- `src/widgets/CheckoutForm` and `src/features/Order/placeOrder/api/api.ts`: send `items[]` and `shippingMethod` instead of the `dishes` string and `amount`.
-- `src/widgets/UserInfo`: switch from `PUT /users/:id` to `PATCH /users/me`; an email change sends `currentPassword`.
-- `app/api/contact/route.ts`: switch to `/api/contact`, send the `website` honeypot field, and forward `X-Forwarded-For`.
-- Checkout (from phase 4): an **email field for guests** (pre-filled for logged-in users), `shippingMethod` `delivery\|pickup` (pickup sends no address), the order number on the success screen, a 409 `PRODUCTS_UNAVAILABLE` message per line, and an order history page (`GET /orders/me`).
-- Account emails (from phase 4): **`/reset-password` and `/verify-email` pages** that read the token from `#token=`, POST it, and send `Referrer-Policy: no-referrer`. The current reset form calls Strapi without the code and is broken. Show `emailVerified` with a "resend" button in the account page.
-- `next.config.ts`: `remotePatterns` must list the new API host and port (`localhost:1339` locally); image URLs stay `API_URL + media.url`.
-- Fix existing bugs along the way:
-  - product list capped at 25 by Strapi's default limit
-  - `calories` vs `callories` mismatch
-  - news post SEO querying `/pages` (`app/(main)/news/[slug]/page.tsx`)
-- Update the Jest tests in `src/features/**` for the new payloads.
+Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-query 5, zustand 5, formik/yup, Jest 30).
+
+**How it works today:**
+
+- **API calls:**
+  - `fetchAPI` (public, `qs`-built Strapi queries) and `fetchWithAuth` (bearer, one retry after a refresh) call Strapi directly from the browser and from server components.
+  - Only login, register, refresh, logout and contact go through Next route handlers in `app/api/`.
+- **Session and data in localStorage:** the access token, the whole user profile (email, phone, address) and the cart are kept in localStorage through zustand `persist`. The refresh token sits in a `refresh_token` cookie with `path=/`.
+- **Image URLs:** 13 components build them as `process.env.API_URL + image.url`.
+- **Prices:** whole hryvnias, numeric ids.
+- **Where data is loaded:** pages prefetch their data in server components (`HydrationBoundary`) and render on the client. Unknown pages call `notFound()` from a client component, so they return 200, not 404.
+
+### Decisions (confirmed by the user 2026-11-16)
+
+- **F1 Who calls what.** The browser calls the API directly (CORS: `CORS_ORIGINS`) for public reads and every bearer call. Only the endpoints that issue or take a **refresh token** (login, register, refresh, logout, change-password) go through Next route handlers, so the token never reaches JavaScript. Server components call the API directly (`API_URL`).
+- **F2 Session state in memory.** Keep the access token and the user profile in memory, not localStorage. On load the app restores the session with one `POST /api/auth/refresh` (route handler), then `GET /users/me`. The cart stays persisted (it holds no personal data).
+- **F3 Guest checkout.** The API accepts guest orders (phase 4), so `proxy.ts` stops sending guests from `/checkout` to `/account`. That guard also can't work once the cookie's path is `/api/auth`.
+- **F4 Generated types.** Generate the API types with `openapi-typescript` (7.13 at the time of writing) from `/api/docs-json` into `src/shared/api/schema.ts` and commit them. Entity types then become aliases (`type Product = components['schemas']['ProductDto']`), so a renamed field breaks `tsc`, not the page.
+- **F5 Contact form direct.** It posts straight to `POST /api/contact`, and `app/api/contact/route.ts` is deleted. The API validates and rate-limits by the real client IP; the Next handler only duplicated that.
+- **F6 Email is the only unique field** (user's decision). Usernames stop being unique, so two customers named "Олена" can both register. Login is **by email only**: "email or username" worked only because usernames were unique and had no `@`. This is an API change, step 8.1, done before the frontend steps.
+- **F7 Rename `username` → `name`, 2–100 characters.** Without uniqueness and login it's just the person's name. Checkout already calls it `name`, and 100 matches the order's name limit, so a profile name always fits the checkout field. One column rename in 8.1's migration; the frontend is rewritten anyway.
+
+### Strapi → API mapping
+
+| Area           | Strapi (now)                                                                                                                                                                                                                                                                                                                                  | API                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Envelope       | `{data, meta: {pagination: {page, pageSize, pageCount, total}}}`                                                                                                                                                                                                                                                                              | `{data, meta: {page, pageSize, total, pageCount}}` (flat). Errors: `{error: {status, code, message, requestId, details?}}`; validation is `BAD_REQUEST` with `details: [{field, messages}]`; 429 `TOO_MANY_REQUESTS` with `Retry-After`                                                                                                                                                                 |
+| Settings       | `GET /site-option?populate=*`: `SiteName`, `SEO.seo_title/seo_description`                                                                                                                                                                                                                                                                    | `GET /settings`: `siteName`, `seo.title/description/shareImage` (a media object: fixes the dead OG-image path)                                                                                                                                                                                                                                                                                          |
+| Menus          | `/header-menu` `data.menuItem`, `/footer-menu` `data.footerMenu`, `/dropdown-menu` `data.menuItem` + `data.menuListItem`; items `{id, Title, Link, Classname}`                                                                                                                                                                                | `GET /menus/header\|footer\|dropdown`: `data.items[{id, title, link, className, group}]`; the dropdown's `group: main` is the old `menuItem`, `list` the old `menuListItem`                                                                                                                                                                                                                             |
+| Homepage       | `GET /homepage`: `data.Body`                                                                                                                                                                                                                                                                                                                  | `GET /pages/home`: `data.sections`                                                                                                                                                                                                                                                                                                                                                                      |
+| Pages          | `GET /pages?filters[slug]=`: `data[0].body`                                                                                                                                                                                                                                                                                                   | `GET /pages/:slug`: `data.sections`, `data.seo`; **404** for unknown, draft or scheduled pages                                                                                                                                                                                                                                                                                                          |
+| Section type   | `__component: 'sections.<name>'`                                                                                                                                                                                                                                                                                                              | `type`: `image-banner`, `products`, `benefits`, `articles`, `image-gallery`, `video` (was `video-block`), `news` (was `news-section`), `content`, `contact`, `promo` (was `promo-block`); each section has an `id`                                                                                                                                                                                      |
+| Section fields | `background_color`, `Benefit` / `article`, gallery `Title`, `embed_video_url`, `placeholder_image`, `blog_category.Name`, `embed_code`, `content2`, `form`, `form_title`, `map_embed_code`, `invert_layout`, `custom_ID`, `custom_Class`, `product_category.products`, source `Selected\|Category\|Featured\|Favorite`, layout `Slider\|Grid` | `backgroundColor`, `items` (no `id`: key by index), `title`, `videoUrl`, `placeholderImage`, `blogCategory {id, name, slug}`, `embedCode`, `secondaryContent`, `showForm`, `formTitle`, `mapEmbedCode`, `invertLayout`, `anchorId`, `className`, **`products[]` resolved by the server** (available products only, in order), source and layout lower-case; `content` sections may also have an `image` |
+| Media          | `{id: number, url, width, height, formats, alternativeText}`                                                                                                                                                                                                                                                                                  | `{id: uuid, url, alt \| null, width \| null, height \| null, formats \| null}`                                                                                                                                                                                                                                                                                                                          |
+| Products       | `GET /products?populate=*` (silently capped at 25), price in hryvnias, numeric id                                                                                                                                                                                                                                                             | Embedded in `products` sections; standalone `GET /products?category=&featured=&favorite=&page=&pageSize=` (≤ 100). **Price: integer kopiykas**; id: UUID; `categories[]`                                                                                                                                                                                                                                |
+| Blog list      | `GET /blog-posts?filters[$and][0][blog_categories][Name][$eq]=…`: `Title`, `Text`, `Image`                                                                                                                                                                                                                                                    | `GET /blog-posts?category=<slug>&page=&pageSize=`: `title`, **`excerpt`** (no full text), `image`, `publishedAt`, `categories`                                                                                                                                                                                                                                                                          |
+| Blog post      | `GET /blog-posts?filters[slug]=`: `data[0]`                                                                                                                                                                                                                                                                                                   | `GET /blog-posts/:slug`: `data` with `text` (markdown), `seo`; 404 for drafts                                                                                                                                                                                                                                                                                                                           |
+| Auth           | `/auth/local {identifier, password}` → `{jwt, refreshToken, user}`; `/auth/local/register`; `/auth/refresh-token`                                                                                                                                                                                                                             | `/auth/login {email, password}` (email only, F6), `/auth/register` (201) → `{accessToken, expiresIn, refreshToken, refreshTokenExpiresAt, user}`; `/auth/refresh {refreshToken}` → a new pair (the old token is used up); `/auth/logout {refreshToken}` (204)                                                                                                                                           |
+| User           | `{id: number, confirmed, blocked, provider, updatedAt, …}`                                                                                                                                                                                                                                                                                    | `{id: uuid, name, email, emailVerified, phone, address, role, createdAt}` (F7)                                                                                                                                                                                                                                                                                                                          |
+| Profile        | `PUT /users/:id` (password in the same body)                                                                                                                                                                                                                                                                                                  | `PATCH /users/me` (`currentPassword` required to change the email); the password through `POST /auth/change-password {currentPassword, newPassword}` (min 8)                                                                                                                                                                                                                                            |
+| Orders         | `POST /orders {data: {dishes, amount, users_permissions_user, …}}`                                                                                                                                                                                                                                                                            | `POST /orders {items: [{productId, quantity}], name, email, phone, shippingMethod: delivery\|pickup, address?, comments?}` → `data.number`, `data.subtotal`; `GET /orders/me`                                                                                                                                                                                                                           |
+| Contact        | `POST /contact-submissions {data: {…}}`                                                                                                                                                                                                                                                                                                       | `POST /contact {name (≤ 100), email, message (≤ 5000), website}` → 204                                                                                                                                                                                                                                                                                                                                  |
+
+### Steps
+
+**8.0 Preparation**
+
+- **Line endings.** The frontend's working tree shows 252 modified files, all line endings only (CRLF; `git diff --ignore-cr-at-eol` is empty). Restore them (`git checkout -- .`), or add `.gitattributes` (`* text=auto eol=lf`) and renormalise, before branching; otherwise every diff is noise.
+- **Branch.** Create `feature/nest-api` from `main`. `dev`, `tests` and `feature/auth-tokens-rotation` are already merged into it.
+- **Local stack.** The API on :1339 with the imported data and Mailpit. `api/.env` needs `CORS_ORIGINS=http://localhost:3000` and `FRONTEND_URL=http://localhost:3000` (both are the defaults in `.env.example`).
+- **Frontend env.**
+  - Point `DEV_API_URL` and `NEXT_PUBLIC_API_URL` at `http://localhost:1339`.
+  - Add a `.env.example` (there is none).
+  - Drop `DEV_DOMAIN`, `PROD_DOMAIN` and `SKIP_BUILD_STATIC_GENERATION`: nothing reads them.
+- **`next.config.ts` `remotePatterns`:** replace `localhost:1338` with `localhost:1339`. Keep the production host; image URLs stay `API_URL + media.url`.
+- **Done when:** the site starts against the new API (still broken) and `git status` is clean apart from intended changes.
+
+**8.1 API: email-only accounts (F6, F7)**, in `api/`. First, because the generated types (8.2) come from it.
+
+- **Migration:**
+  - Drop `UQ_user_username`.
+  - Replace `CHK_app_user_username` with `CHK_app_user_name`: length only (2–100, no control characters). The "no `@`" rule existed only to keep "email or username" login unambiguous.
+  - F7: rename the column to `name`, as `text` (case-insensitive comparison no longer matters), and widen it to 100 characters.
+  - `down` restores the unique constraint. That fails once two accounts share a name: let it fail with a clear message rather than rename people.
+- **Entity and DTOs:**
+  - `User`: no `@Unique`, the new `@Check`, comments updated.
+  - `UserFieldsDto`: `name` (F7), 2–100 characters, any script, spaces and `@` allowed, no control characters.
+  - `UserDto`, `AdminUserDto`, the mappers, `RegisterDto`, `UpdateMeDto`.
+- **Login by email:**
+  - `LoginDto.identifier` → `email` (≤ 254, checked only for an `@` like the database's check, not with `IsEmail`: an imported account with an unusual address must still get in) on `/auth/login` and `/admin/auth/login`.
+  - `UsersService.findByIdentifierWithPassword` → `findByEmailWithPassword`.
+  - `@ThrottleBy('email')`.
+  - `INVALID_CREDENTIALS` reads "Invalid email or password".
+  - Swagger texts updated.
+- **Conflicts:**
+  - Remove the `USERNAME_TAKEN` mapping. Register and `PATCH /users/me` answer 409 only with `EMAIL_TAKEN`.
+  - Update the 409 descriptions in `auth.controller` and `users.controller`.
+- **Admin app and CLI:**
+  - The admin app's sign-in page is react-admin's built-in `LoginWithEmail`; `authProvider.login` sends `{email, password}`.
+  - Users list and edit: `name` (F7); search stays name or email.
+  - `npm run admin:create -- --email … --name …`.
+  - The smoke script's users column.
+- **Strapi import:** names are copied as before.
+  - The 4 imported customers could sign in with their username on Strapi; after cutover only with their email.
+  - The site's sign-in form says "email" (8.8).
+- **Tests:**
+  - e2e: two accounts with the same name (also differing only in case) register; logging in with a name instead of an email is a 400; the `USERNAME_TAKEN` tests go; the admin login uses `email`.
+  - The migration's up and down run in CI's schema check.
+  - Unit tests for the DTO rules.
+- **Plan and README:** the data model row, the public API's login line and rate limits ("per IP + email"), the README's auth notes.
+- **Done when:** the API's format, typecheck, lint, build, unit and e2e tests and the admin smoke test pass, and `/api/docs-json` shows `name` and `email`-only login.
+
+**8.2 API layer (`src/shared/api/`)**
+
+- **`schema.ts`:** generated (F4), with an `npm run api:types` script that reads `http://localhost:1339/api/docs-json`.
+- **`client.ts`:**
+  - `apiUrl(path)`: the existing server/browser split, `API_URL` vs `NEXT_PUBLIC_API_URL`.
+  - `apiFetch<T>(path, {query, ...init})`: `URLSearchParams` instead of `qs` (remove `qs` and `@types/qs`). It unwraps `{data, meta}` and throws an `ApiError {status, code, message, details, retryAfter}` built from the error envelope; network failures become status 0.
+  - Replaces `fetchAPI` and `getStrapiURL`.
+- **`errors.ts`:** one place that turns codes into Ukrainian messages:
+  - `INVALID_CREDENTIALS`, `ACCOUNT_BLOCKED`
+  - `EMAIL_TAKEN`
+  - `WRONG_PASSWORD`, `CURRENT_PASSWORD_REQUIRED`
+  - `INVALID_TOKEN`, `PRODUCTS_UNAVAILABLE`
+  - 429 with the wait from `Retry-After`
+
+  Also a `fieldErrors(error)` helper for Formik's `setErrors` from `details`. The API's own messages are English; show your text, keyed by field and code.
+
+- **`src/shared/lib/media.ts`:**
+  - `mediaSrc(media, format?)`: the URL, optionally a `formats.medium` etc. variant.
+  - `mediaProps(media)`: `src`, `alt ?? ""`, and width/height with a fallback (they're nullable) for `next/image`.
+
+  Replaces `getStrapiMedia` and the 13 `process.env.API_URL + …` call sites. Use the existing (unused) `prefixContentImages` on HTML fields: product description, image-banner text, video description, content, contact. Images the admin's editor inserts are `/uploads/…`.
+
+- **`src/shared/lib/money.ts`:** `formatPrice(kopiykas)`, e.g. `85 ₴` / `85,50 ₴` (`Intl.NumberFormat('uk-UA')`). Prices are integers everywhere in code; divide only for display.
+- **Server-side getters** (settings, page, post): wrap them in React `cache()`, so `generateMetadata` and the page share one request.
+- **Done when:** unit tests cover `apiFetch` (envelope, error envelope, query building, network error), `formatPrice` and `mediaSrc`.
+
+**8.3 Settings, menus and the layout**
+
+- **`entities/Options`:** `GET /settings`. Rename `SiteOptions` (`siteName`, `seo`); update `defaultSiteOptions` in `shared/constants`.
+- **`entities/Menu`:** one `menuApi.get(key)`; the dropdown splits `items` by `group`. Default menus use the new field names. Touch points:
+  - `Navbar`, `NavbarCollapseMenu`, `NavbarCollapseDropdownMenu`
+  - `Footer`, `FooterNav`, `FooterWidget`
+  - `NavbarTel`, `NavbarCenter`
+- **Done when:** header, dropdown and footer show the admin's menus and settings (change one in the admin and reload).
+
+**8.4 Pages, sections and SEO**
+
+- **`entities/PageData`:** one `getPage(slug)` (`/pages/:slug`); the homepage is `home`. Remove the "single type vs dynamic type" split (`isPageDynamic`).
+- **Real 404s:** in `pages/home` and `pages/subpage`, fetch on the server with `queryClient.fetchQuery` and call `notFound()` there on `ApiError` 404. That way unknown pages answer 404, not 200.
+- **Remove the products prefetch:** `Subpage` no longer prefetches `productsQuery()`; sections arrive with their products.
+- **`SectionWizard`:** switch on `type`, `key={section.id}`, pass the renamed fields (table above). A section with a type it doesn't know renders nothing.
+- **Widgets:** take the new field names and `mediaProps()`. Item lists (benefits, articles) are keyed by index. `ContentBlock` may show the new `image`. Touch points:
+  - `ImageBanner`, `ProductList`, `BenefitsList`, `ArticlesList`
+  - `ImageGallery`, `VideoWidget`, `NewsWidget`, `ContentBlock`, `ContactUs`, `PromoBlock`
+  - `BenefitPost`, `ArticlePost`
+- **`ProductList`:** render `section.products` as given. The client-side filtering by source and availability, and the `rawProducts` prop, go away: the server resolves featured, favorite, category and selected, available products only. This also fixes the cap of 25 products.
+- **`ProductCard`:** `calories` (fixes the `callories` mismatch), `formatPrice`, the description through `prefixContentImages`.
+- **`PageSEO`:**
+  - It reads `page.seo` with `settings.seo` as the fallback, and `title` from `seo.title ?? page.title`.
+  - The share image becomes an absolute URL in `openGraph.images`.
+  - A 404 calls `notFound()`.
+- **Done when:** the homepage and all 9 CMS pages render like on Strapi (compare side by side: section order, images, product lists per source, gallery, video, map embed, contact form). An unknown slug is a 404; the page `<title>` and description come from the admin's SEO fields.
+
+**8.5 Blog**
+
+- **`entities/BlogData`:** `getPosts({category: slug, page, pageSize})`. `NewsWidget` uses `blogCategory.slug` (hidden when the category is null). `Pagination` gets the flat `meta`.
+- **`BlogPost`:** shows `excerpt` (drop the client truncation of the full text) and the image's `formats.medium`.
+- **`entities/PostData`:** `getPost(slug)` (`/blog-posts/:slug`). `PostDetails` renders `title`, `image`, `text` (markdown), and gives `notFound()` on 404 on the server like 8.4.
+- **News post SEO:** `app/(main)/news/[slug]/page.tsx`'s `generateMetadata` uses the post's `seo` (falling back to its title and excerpt). This fixes the old bug of querying `/pages` for a post.
+- **Done when:** the news section pages through both posts, a post opens with its SEO, and a draft post's URL is a 404.
+
+**8.6 Prices and the cart**
+
+- **Cart store** (`entities/Cart`): ids become strings (UUIDs) and prices integer kopiykas. Store `{productId, title, image, unitPrice, quantity}`; `totalAmount` is the sum in kopiykas.
+- **Old carts:** give the cart's `persist` a `version: 1` and a `migrate` that empties carts saved by the Strapi site. Their numeric ids and hryvnia prices are meaningless to the new API.
+- **Display:** `formatPrice` in `ProductCard`, `ShopCartItem`, `ShopCart`, `NavbarCollapseCart` and `NavbarDropdownCart`. The cart's totals are an estimate; the order's `subtotal` from the API is the real price.
+- **Done when:** adding, removing and totals work, and a cart saved by the old site is emptied, not sent.
+
+**8.7 Sessions (auth)**
+
+- **Route handlers** in `app/api/auth/`:
+  - `login` and `register` call `/api/auth/login` and `/api/auth/register`.
+  - **Every handler that receives tokens** sets the refresh token as a cookie and returns only `{accessToken, expiresIn, user}`.
+  - `refresh` sends the cookie's token and **stores the new one** (the old one is used up).
+  - `logout` sends the refresh token to `/api/auth/logout` (the session ends on the server), then clears the cookie.
+  - A new `change-password` handler (it returns a new pair, see 8.8).
+  - All of them forward the client's `X-Forwarded-For`, appending to what nginx sent; `NextRequest` has no `ip` in Next 16. Otherwise the API's per-IP limits count the whole site as one client.
+- **Cookie:**
+  - Rename it `sf_refresh`: `HttpOnly`, `SameSite=Strict`, `Secure` in production, `path=/api/auth`, `expires` = `refreshTokenExpiresAt`.
+  - Delete the legacy `refresh_token` (`path=/`) on login, refresh and logout. Two cookies with the same name and different paths would otherwise both be sent.
+- **Token in memory (F2):**
+  - The `auth` store loses `persist`; `user-storage` and `token-storage` are removed from localStorage once at startup.
+  - A session bootstrap on app load: refresh, then `GET /users/me`. It shows "logged out" on a 401.
+  - The account page waits for the bootstrap instead of reading a persisted user.
+- **`fetchWithAuth`:**
+  - **One shared refresh promise** per tab (concurrent 401s wait for it).
+  - **A cross-tab lock** (`navigator.locks.request('sf-refresh', …)`). The API answers a token reused within 10 s with a 401 without ending the session, but the refresh handler would then delete the cookie that the other tab just renewed.
+  - It retries once with the new token, signs out on a failed refresh, and throws `ApiError`.
+- **`proxy.ts`:** remove the `/checkout` guard (F3). Nothing else is protected server-side; account pages handle "logged out" themselves.
+- **Done when:**
+  - Login, register, logout and reload keep or end the session correctly.
+  - Logging out ends the server session (a later refresh with that token fails).
+  - Ten parallel calls with an expired access token trigger one refresh.
+  - Two tabs refreshing at once stay logged in.
+  - No token or profile data remains in localStorage.
+
+**8.8 Account**
+
+- **`SignIn`:** one **email** field (`type=email`, ≤ 254; today a "username or email" field capped at 30, so a long email can't log in). Customers who used their username on Strapi now sign in by email: say so under the field. Password min 8, max 72 bytes. Show `INVALID_CREDENTIALS` and `ACCOUNT_BLOCKED`, and the 429 wait.
+- **`SignUp`:** `name` (2–100 characters, not unique: F6, F7), phone in the API's format (`+`, digits, spaces, brackets, dashes; 7–20 characters), password min 8. `EMAIL_TAKEN` shows on the email field.
+- **`UserInfoForm`:**
+  - `PATCH /users/me` with only the changed fields.
+  - A "current password" field appears when the email changes (`CURRENT_PASSWORD_REQUIRED`, `WRONG_PASSWORD`).
+  - The password fields move to a **separate change-password form** (current + new + confirmation). It goes through the new route handler, which stores the new refresh cookie: the API ends every other session.
+- **Email verification:** show `emailVerified`, with a "resend the link" button (`POST /auth/resend-verification`, 3/hour).
+- **Order history:** a list on the account page from `GET /orders/me` (paginated): number, date, status, items, subtotal. Legacy orders show `legacyItemsText`.
+- **Done when:** every form shows the API's errors on the right field, and an email change sends the verification link and the notice (check Mailpit).
+
+**8.9 Password reset and email verification**
+
+- **Forgot password:** finish the placeholder modal `ModalResetPassword` and re-enable the commented-out "Забули ваш пароль?" link. It sends `POST /auth/forgot-password {email}` (always 204: show the same "check your email" text whether or not the account exists).
+- **Two new pages:** `app/(main)/reset-password/page.tsx` and `verify-email/page.tsx`.
+  - They read the token from `location.hash` (`#token=…`), clear the fragment (`history.replaceState`) and post it: `/auth/reset-password {token, newPassword}`, `/auth/verify-email {token}`.
+  - Show success, or `INVALID_TOKEN` with a way to ask for a new link.
+  - `metadata.referrer = 'no-referrer'` and `robots: noindex`.
+  - A reset doesn't log in: send the user to sign in. Verification refreshes the profile if a session exists.
+- **Remove the old `resetPassword`** in `features/Auth/api` (it called Strapi without the code and never worked).
+- **Done when:** a reset link from Mailpit works once, a second use shows the error, and verification flips `emailVerified`.
+
+**8.10 Checkout**
+
+- **`features/Order/placeOrder`:** sends `items[]` from the cart (`productId`, `quantity`), `name`, `email`, `phone`, `shippingMethod`, and `address` only for delivery, plus `comments`. Bearer when logged in, none for guests (`fetchWithAuth` must not demand a token).
+- **`CheckoutForm`:**
+  - An **email field** (required; pre-filled and editable for logged-in users).
+  - Shipping `flat_rate` → `delivery`, `local_pickup` → `pickup`. Pickup sends **no** address; today it sends the shop's address as the customer's. The shop's address is shown, not submitted.
+  - Limits match the API: name ≤ 100, address ≤ 500, comments ≤ 1000, the phone pattern.
+- **Errors:**
+  - **409 `PRODUCTS_UNAVAILABLE`:** name the lines from `details` and offer to remove them from the cart.
+  - **400:** field errors.
+  - **429:** the wait.
+  - Otherwise: the existing "call us" message.
+- **Success:** the screen shows the **order number** (`data.number`) and the server's `subtotal`; the cart is emptied only after a 201.
+- **Done when:** guest and logged-in orders appear in the admin with their items and the server's prices; both emails arrive in Mailpit; an order with a product made unavailable in the admin shows the 409 message.
+
+**8.11 Contact form**
+
+- **Posting:** `ContactForm` posts `{name, email, message, website: ""}` to `POST /api/contact` directly (F5) and gets a 204. The hidden `website` input is visually hidden but not `display:none`, with `tabIndex=-1` and `autoComplete="off"`.
+- **Clean-up:** delete `app/api/contact/route.ts`.
+- **Errors and limits:** name ≤ 100, message ≤ 5000; show the 429 wait.
+- **Done when:** a message appears in the admin's messages, and the shop's email arrives in Mailpit with `Reply-To` set to the sender.
+
+**8.12 Clean-up**
+
+- **Remove dead code and old names:**
+  - `getStrapiURL`, `getStrapiMedia`, `fetchAPI`, `qs`
+  - `RefreshResponse.jwt`, the old `Order` type with `dishes`/`amount`
+  - Strapi wording in comments
+- **Dependency:** `entities/Product` keeps only what's used (sections embed their products).
+- **Small fixes along the way:**
+  - `<html lang="ru">` → `"uk"`
+  - `next/head` in the App Router root layout does nothing: the favicon comes from `app/favicon.ico`.
+- **CI** (`.github/workflows/deploy.yml`): Node 24 (as the API), add `npm run lint` and `tsc --noEmit` next to the tests.
+- **Not here:** the deploy steps change in phase 9 (cutover).
+
+**8.13 Tests and verification**
+
+- **Rewrite the Jest tests** in `src/features/**` (8 files, all mock Strapi payloads): auth API and hooks, `fetchWithAuth` (single refresh, cross-tab lock mocked, sign-out on failure), place order (payload shape, guest without token, 409), contact.
+- **Add tests** for the route handlers (cookie name, path and expiry; the refresh token never in the body; `X-Forwarded-For` passed on), the cart migration, `formatPrice`, `mediaSrc` and `fieldErrors`.
+- **Manual run** against the local API:
+  - the homepage, all 9 CMS pages and an unknown slug (404)
+  - the news list and a post
+  - register, verify email, log in, edit the profile, change the password, forgot/reset, log out
+  - guest and logged-in checkout (check the admin and Mailpit)
+  - the contact form
+  - two tabs over an access-token expiry
+  - a cart saved by the old site
+  - Lighthouse SEO tags on a page and a post
+- **Done when:** lint, `tsc`, Jest and `next build` pass, and the manual list is clean, with no console errors.
+
+**Not in phase 8:** product pages; online payment; a delivery fee; caching pages (`revalidate` with a revalidation call from the admin on save); a sitemap; Next 16.2 → 16.4; Ukrainian texts in the admin (phase 7 carry-over).
 
 ## Phases
 
@@ -206,8 +447,20 @@ A one-off import, compiled with the app (it uses the entities) and run from `dis
    - From phase 5: the upload field and a media picker call `MediaService` (never write files directly). A blocked editor keeps API access until the access token expires (≤ 15 min, phase 3 D3), as every account does.
    - From phase 4: order status changes go through `canTransition()`; mark contact messages handled; the dashboard shows new orders and unhandled messages.
    - From phase 3: blocking a user calls `RefreshTokensService.revokeAllForUser` (their access token still works until it expires, at most 15 min); admin-only API routes get `@Roles()`, and `ApiAuth()` should then document their 403.
-8. **Frontend adaptation** on a branch, run against the local Nest API.
-   - Auth (from phase 3): see the auth items under "Frontend changes".
+8. **Frontend adaptation** on a branch (`feature/nest-api`), run against the local Nest API: steps 8.0–8.13 and decisions F1–F7 under "Frontend changes" (8.1 changes the API: email-only accounts).
+   - ✅ Done (2026-11-16):
+     - **API (8.1):** email-only accounts (`name`, not unique, 2–100), migration `UserNameNotUnique` (its `down()` refuses shared names); the section DTOs' docs say which fields are HTML.
+     - **Site:** on the Nest API through generated types (`openapi-typescript`), `apiFetch`/`authFetch` with one shared refresh per tab and Web Locks across tabs, the session routes with the `sf_refresh` cookie, real 404s; checkout for guests and customers (order number, 409 per line); account (profile, password, email verification, order history); reset-password and verify-email pages; the contact form straight to the API.
+     - **Clean-up:** the old Strapi code, `qs`, `classnames`, `yup-phone`, `autoprefixer`, the unused Tailwind config (Tailwind 4 never read it), `proxy.ts`, unused helpers; the old lint error and 16 warnings; CI on Node 24 with lint and typecheck.
+     - Covered by Jest (70 tests), the API's tests, and a browser run against a copy of the dev database.
+   - **Deviations:**
+     - Phone numbers are checked with the API's pattern instead of `yup-phone` (Ukrainian numbers only): one rule on both sides, one heavy dependency less.
+     - `content` sections' `image` is still not shown (two pages have one): the Strapi site didn't show it either.
+     - Prices have no thousands separator: Node and browsers disagree on the space, and server-rendered prices must match.
+   - **Carried over:**
+     - **Next 16.2 → 16.4.6:** `npm audit` reports a critical advisory for 16.2 (and 30 more, mostly transitive, `npm audit fix` resolves them).
+     - **Refresh limits:** every full page load of a signed-in visitor refreshes (30/min per IP at the API). Behind nginx with `TRUST_PROXY_HOPS` that's per visitor; an office of customers behind one IP could hit it. Consider keying the refresh limit by session instead.
+     - The "call me back" form in the header modal still does nothing (no API for it).
 9. **Cutover.**
    - **Production Docker image first** (moved here from phase 1). `.dockerignore` already exists: an allow-list of `package*.json`, `src/`, `nest-cli.json` and the tsconfigs.
      - **`Dockerfile`, 3 stages on `node:24-alpine`:** `build` (`npm ci`, `nest build`, so the Swagger plugin runs); `deps` (`npm ci --omit=dev`); `runtime`. Use npm cache mounts and bind-mounted `package*.json`. If `sharp` (phase 5) has trouble on Alpine's musl, switch to `bookworm-slim`.

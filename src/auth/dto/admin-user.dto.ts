@@ -6,7 +6,7 @@ import { UserRole } from '@/users/entities/user.entity';
 /** An account as admins see it. Never the password hash. */
 export class AdminUserDto {
   id: string;
-  username: string;
+  name: string;
   email: string;
   emailVerified: boolean;
   phone: string | null;
@@ -19,7 +19,7 @@ export class AdminUserDto {
 
 export class AdminUsersQueryDto extends AdminListQueryDto {
   @IsOptional()
-  @IsIn(['id', 'username', 'email', 'role', 'createdAt'])
+  @IsIn(['id', 'name', 'email', 'role', 'createdAt'])
   sort: string = 'createdAt';
 
   @IsOptional()

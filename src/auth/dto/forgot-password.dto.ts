@@ -2,7 +2,7 @@ import { IsEmail, MaxLength } from 'class-validator';
 
 export class ForgotPasswordDto {
   /**
-   * The account's email (not the username): the link goes to it.
+   * The account's email: the link goes to it.
    * @example "ivan@example.com"
    */
   @IsEmail()

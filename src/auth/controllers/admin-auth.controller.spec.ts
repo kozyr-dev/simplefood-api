@@ -45,7 +45,7 @@ describe('AdminAuthController', () => {
     const { res, cookie } = response();
 
     await controller('production').controller.login(
-      { identifier: 'a@example.com', password: 'x' },
+      { email: 'a@example.com', password: 'x' },
       res,
     );
 
@@ -60,7 +60,7 @@ describe('AdminAuthController', () => {
       const { res, cookie } = response();
 
       await controller(nodeEnv).controller.login(
-        { identifier: 'a@example.com', password: 'x' },
+        { email: 'a@example.com', password: 'x' },
         res,
       );
 
@@ -83,7 +83,10 @@ describe('AdminAuthController', () => {
     const { res } = response();
     const { controller: admin } = controller('production');
 
-    const login = await admin.login({ identifier: 'a', password: 'x' }, res);
+    const login = await admin.login(
+      { email: 'a@example.com', password: 'x' },
+      res,
+    );
     const refreshed = await admin.refresh(withCookie('abc'), res);
 
     for (const { data } of [login, refreshed]) {

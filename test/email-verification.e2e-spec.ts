@@ -49,7 +49,7 @@ describe('Email verification and account notices (e2e)', () => {
 
   const register = (email = 'Ivan@Example.com') =>
     http().post('/api/auth/register').send({
-      username: 'Ivan Petrenko',
+      name: 'Ivan Petrenko',
       email,
       password: TEST_PASSWORD,
     });
@@ -302,7 +302,7 @@ describe('Email verification and account notices (e2e)', () => {
       const { user, accessToken } = await verifiedUser();
 
       await patchMe(accessToken, {
-        username: 'Renamed',
+        name: 'Renamed',
         email: 'ivan@example.com',
       }).expect(200);
 
