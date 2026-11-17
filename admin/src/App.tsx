@@ -3,12 +3,12 @@ import {
   Admin,
   CustomRoutes,
   Layout,
-  LoginWithEmail,
   Menu,
   Resource,
   type LayoutProps,
 } from 'react-admin';
 import { Route } from 'react-router-dom';
+import { AppBarWithLogo, LoginPage } from './Branding';
 import { Dashboard } from './Dashboard';
 import { authProvider } from './providers/authProvider';
 import { dataProvider } from './providers/dataProvider';
@@ -36,7 +36,9 @@ const AppMenu = () => (
 );
 
 const AppLayout = ({ children }: LayoutProps) => (
-  <Layout menu={AppMenu}>{children}</Layout>
+  <Layout menu={AppMenu} appBar={AppBarWithLogo}>
+    {children}
+  </Layout>
 );
 
 /*
@@ -53,7 +55,7 @@ export function App() {
       dashboard={Dashboard}
       layout={AppLayout}
       // Accounts log in by email only (names aren't unique).
-      loginPage={LoginWithEmail}
+      loginPage={LoginPage}
       // Follows the system's light or dark mode; the top bar has a toggle.
       lightTheme={lightTheme}
       darkTheme={darkTheme}

@@ -396,7 +396,15 @@ function createTheme(t: Tokens): RaThemeOptions {
               borderRadius: 16,
               boxShadow: floating(t),
             },
-            '& .RaLogin-icon': { backgroundColor: t.primary.main },
+            // The logo (Branding.tsx) on the site's green, as in its header.
+            '& .RaLogin-avatar': { margin: '16px 16px 8px' },
+            '& .RaLogin-icon': {
+              width: 'auto',
+              height: 56,
+              padding: '0 24px',
+              borderRadius: 12,
+              backgroundColor: BRAND_GREEN,
+            },
           },
         },
       },

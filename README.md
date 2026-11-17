@@ -266,7 +266,7 @@ test/
   *.e2e-spec.ts     e2e suites
 admin/              the admin app (react-admin, its own package): src/providers (API, auth,
                     data), src/resources (one file per area), src/sections (section forms),
-                    src/theme.ts (light and dark themes), scripts/smoke.mjs (browser smoke
+                    src/theme.ts (light and dark themes), src/Branding.tsx (logo, sign-in page), scripts/smoke.mjs (browser smoke
                     test)
 docs/               migration plan
 ```
