@@ -527,7 +527,15 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
   - **The API's checks:** format, typecheck, lint and build pass; 759 unit tests and 668 e2e tests pass.
 - **Needs the user:** the api repo has no GitHub remote yet. CI and `publish` run once it's pushed to GitHub (C3).
 
-**9.2 Production Compose, configuration and deploy**: written and tested locally 2026-11-17; on the VPS once the repo is on GitHub (see `deploy/README.md`)
+**9.2 Production Compose, configuration and deploy**: written and tested locally 2026-11-17; repo on GitHub (`kozyr-dev/simplefood-api`), CI green, image on GHCR 2026-11-18; `/opt/simplefood-api` set up on the VPS 2026-11-18 (see `deploy/README.md`); first deploy pending `DEPLOY_ENABLED`
+
+- **On the VPS (2026-11-18):**
+  - The four files from the pushed commit; `.env` and `api.env` are `chmod 600` in a `700` folder.
+  - `POSTGRES_PASSWORD` and `JWT_ACCESS_SECRET` were generated there, never printed.
+  - Until 9.4, `SMTP_USER`/`SMTP_PASSWORD` are commented out (the API runs; mail fails and is logged) and `MAIL_NOTIFY_TO` is the placeholder `change-me@example.com`.
+  - The published image validated `api.env` with its own schema. Port 1339 is free (Strapi uses 1338, the site 3000).
+  - The GHCR package took the repo's visibility (public): it pulls without a login, and the deploy job logs in anyway.
+- **Found on the first push:** the runner's ShellCheck 0.11 reports SC2329 (now disabled with SC2317 in the smoke test), and a new `picomatch` advisory with no fix (GHSA-fc5q-39xc-vjpf) failed both audits. CI now audits through `scripts/npm-audit.mjs`, which still fails on high and critical advisories except the reviewed ones listed in it. Dependabot skips `@types/node` majors (they follow `.nvmrc`).
 
 - **[deploy/compose.yaml](../deploy/compose.yaml)** (project `simplefood-api`, in `/opt/simplefood-api` on the VPS):
   - **`postgres`:** `postgres:18.7-alpine3.24`, the volume `postgres-data`, no published port, a `pg_isready` health check, 512 MB.

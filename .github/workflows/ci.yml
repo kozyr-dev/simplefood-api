@@ -202,8 +202,13 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           install -d -m 700 ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          # OpenSSH refuses a key with Windows line endings ("error in libcrypto").
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -P '' -f ~/.ssh/deploy_key > /dev/null; then
+            echo "::error::VPS_SSH_KEY isn't a usable private key. Paste the whole file, BEGIN and END lines included, as it is on disk; it can't have a passphrase."
+            exit 1
+          fi
           # The pinned host key: the job talks to this server or to none.
           printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
           printf 'Host vps\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  BatchMode yes\n  StrictHostKeyChecking yes\n' \
