@@ -10,7 +10,7 @@
 # Needs Docker, curl and jq. Leaves nothing behind (containers, network and
 # temp files are removed on exit, failed or not). Runs in CI (.github/workflows/ci.yml).
 # Functions run through trap and check(), which ShellCheck can't follow.
-# shellcheck disable=SC2317
+# shellcheck disable=SC2317,SC2329
 set -euo pipefail
 
 IMAGE=${1:?usage: scripts/docker-smoke.sh <image>}

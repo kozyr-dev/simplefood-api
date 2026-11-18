@@ -56,8 +56,9 @@ jobs:
         run: npm run test:e2e -- --ci
 
       # Known vulnerabilities in what ships to production (dev tools excluded).
+      # Fails on high and critical, except the advisories reviewed in the script.
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/npm-audit.mjs --omit=dev
 
   admin:
     name: Admin app (lint, test, build)
@@ -94,7 +95,7 @@ jobs:
 
       # Everything in the bundle ships to staff browsers.
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: node ../scripts/npm-audit.mjs
 
   image:
     name: Docker image (build, smoke test)

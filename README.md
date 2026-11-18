@@ -269,7 +269,7 @@ admin/              the admin app (react-admin, its own package): src/providers 
                     src/theme.ts (light and dark themes), src/Branding.tsx (logo, sign-in page), scripts/smoke.mjs (browser smoke
                     test)
 docs/               migration plan
-scripts/            docker-smoke.sh: the production image's smoke test
+scripts/            docker-smoke.sh: the production image's smoke test; npm-audit.mjs: CI's npm audit
 deploy/             production: compose.yaml, deploy.sh, the settings templates, README
 Dockerfile          the production image (API + admin app); .dockerignore is an allow-list
 ```
@@ -387,8 +387,9 @@ scripts/docker-smoke.sh simplefood-api     # starts it next to a throwaway Postg
 
 - **API:** format check → typecheck → lint → build → unit tests → e2e tests (Testcontainers) → `npm audit` of production dependencies.
 - **Admin app** (`admin/`): format check → lint → typecheck and build → unit tests (Vitest) → `npm audit`. The browser smoke test runs by hand (it needs Chrome and a throwaway database).
+- **The audits** fail on high and critical advisories. [scripts/npm-audit.mjs](scripts/npm-audit.mjs) runs `npm audit` and lists the few advisories reviewed as harmless here (npm can't ignore one), each with the reason; it says when an entry can go.
 - **Image:** builds the production image for `linux/amd64` and runs `scripts/docker-smoke.sh` on it.
-- **Publish** (pushes to `main` only, once all three above pass): pushes the image to GHCR as `ghcr.io/<owner>/simplefood-api:<full commit SHA>`.
+- **Publish** (pushes to `main` only, once the API, admin and image jobs pass): pushes the image to GHCR as `ghcr.io/<owner>/simplefood-api:<full commit SHA>`.
 - **Deploy** (after publish, once the repository variable `DEPLOY_ENABLED` is `true`): runs `deploy/deploy.sh` on the VPS over SSH. See [deploy/README.md](deploy/README.md).
 
 A newer push cancels a pull request's running CI, but on `main` it waits, so a deploy is never cut off halfway.
