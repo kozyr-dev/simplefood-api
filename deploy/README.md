@@ -8,6 +8,7 @@ The VPS runs Postgres and the API with Docker Compose in `/opt/simplefood-api`. 
 | [deploy.sh](deploy.sh)       | git → VPS (CI copies it) | pull, migrate, replace the API, wait for healthy (back to the previous image if it isn't)      |
 | `.env`                       | VPS only (`chmod 600`)   | for Compose: `POSTGRES_PASSWORD`, `API_IMAGE` (written by deploy.sh). [Template](.env.example) |
 | `api.env`                    | VPS only (`chmod 600`)   | the API's settings. [Template](api.env.example)                                                |
+| [nginx/](nginx)              | git → VPS (by hand)      | Hestia proxy templates for the site and the API domain (below)                                 |
 
 ## One-time setup
 
@@ -33,6 +34,23 @@ Then, in the GitHub repository's settings:
 - **Variable** `DEPLOY_ENABLED` = `true`: the deploy job is skipped until it is set.
 
 The job logs in to GHCR on the VPS with its own short-lived token for each pull, so the VPS keeps no registry password, even for a private image.
+
+## nginx (Hestia proxy templates)
+
+Hestia writes each domain's nginx config from a proxy template, so the changes live in templates, not in the generated files (which Hestia overwrites). [nginx/](nginx) holds them; install by copying them to `/usr/local/hestia/data/templates/web/nginx/` (root, `644`):
+
+- **`simplefood-api-nest-proxy`** for `api-simplefood.kozyr.info`: HTTPS proxies to `127.0.0.1:1339` with `Host`, `X-Forwarded-For` (replaced with the client's address, for `TRUST_PROXY_HOPS=1`) and `X-Forwarded-Proto`, and an 11 MB body limit. HTTP redirects to HTTPS, except the Let's Encrypt challenge.
+- **`simplefood-nest-proxy`** for `simplefood.kozyr.info`: everything to Next.js on `127.0.0.1:3000`, its own `/api/auth/*` included; old `/uploads/…` links redirect (301) to the API's domain.
+
+Switching a domain (Hestia regenerates its config and reloads nginx), and back to the Strapi-era templates the same way:
+
+```bash
+v-change-web-domain-proxy-tpl dev api-simplefood.kozyr.info simplefood-api-nest-proxy
+v-change-web-domain-proxy-tpl dev simplefood.kozyr.info simplefood-nest-proxy
+# back: ... simplefood-api-proxy / simplefood-proxy
+```
+
+After editing an installed template, rebuild the domain's config: `v-rebuild-web-domain dev <domain>`.
 
 ## Everyday commands
 

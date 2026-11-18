@@ -527,7 +527,7 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
   - **The API's checks:** format, typecheck, lint and build pass; 759 unit tests and 668 e2e tests pass.
 - **Needs the user:** the api repo has no GitHub remote yet. CI and `publish` run once it's pushed to GitHub (C3).
 
-**9.2 Production Compose, configuration and deploy**: written and tested locally 2026-11-17; repo on GitHub (`kozyr-dev/simplefood-api`), CI green, image on GHCR 2026-11-18; `/opt/simplefood-api` set up on the VPS 2026-11-18 (see `deploy/README.md`); first deploy pending `DEPLOY_ENABLED`
+**9.2 Production Compose, configuration and deploy**: written and tested locally 2026-11-17; repo on GitHub (`kozyr-dev/simplefood-api`), CI green, image on GHCR 2026-11-18; `/opt/simplefood-api` set up on the VPS and first deploy by CI 2026-11-18 (see `deploy/README.md`): **done**
 
 - **On the VPS (2026-11-18):**
   - The four files from the pushed commit; `.env` and `api.env` are `chmod 600` in a `700` folder.
@@ -535,6 +535,7 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
   - Until 9.4, `SMTP_USER`/`SMTP_PASSWORD` are commented out (the API runs; mail fails and is logged) and `MAIL_NOTIFY_TO` is the placeholder `change-me@example.com`.
   - The published image validated `api.env` with its own schema. Port 1339 is free (Strapi uses 1338, the site 3000).
   - The GHCR package took the repo's visibility (public): it pulls without a login, and the deploy job logs in anyway.
+- **First deploy (2026-11-18, by CI):** both containers healthy; 13 migrations applied to the empty database; `/health`, `/api/products` and `/admin/` answer 200 on `127.0.0.1:1339`, and port 1339 isn't reachable from outside; the API uses about 100 MB and Postgres about 40 MB. The deploy job uses its own key (`VPS_SSH_KEY`, OpenSSH format): the website's secret isn't one OpenSSH can read. The job now strips CRLF from the key and checks it before connecting.
 - **Found on the first push:** the runner's ShellCheck 0.11 reports SC2329 (now disabled with SC2317 in the smoke test), and a new `picomatch` advisory with no fix (GHSA-fc5q-39xc-vjpf) failed both audits. CI now audits through `scripts/npm-audit.mjs`, which still fails on high and critical advisories except the reviewed ones listed in it. Dependabot skips `@types/node` majors (they follow `.nvmrc`).
 
 - **[deploy/compose.yaml](../deploy/compose.yaml)** (project `simplefood-api`, in `/opt/simplefood-api` on the VPS):
@@ -578,7 +579,15 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
 - **Rate limits:** the counters live in memory, per process. That's fine for one instance; switch the throttler to Redis before running more.
 - **Done when:** the first CI deploy on the VPS starts Postgres and the API on an empty database (migrations applied), and `/health` answers on `127.0.0.1:1339`.
 
-**9.3 nginx** (written now, switched on in 9.7)
+**9.3 nginx** (written now, switched on in 9.7): **done** 2026-11-18. The templates are in [deploy/nginx/](../deploy/nginx) and installed on the VPS as `simplefood-nest-proxy` and `simplefood-api-nest-proxy`; both domains still use the old ones.
+
+- **Tested on the VPS (22 checks pass):** `nginx -t` on a copy of the real config with both domains rendered from the new templates; then a throwaway nginx on `127.0.0.1:18080/18443` with the real certificates:
+  - **API:** `/health`, `/api/products`, `/admin/` 200; the admin's sign-in with its own origin reaches the password check (401), another origin gets 403 `CROSS_ORIGIN_REQUEST`; a 10.5 MB upload reaches the API, 12 MB gets nginx's 413; HTTP redirects to HTTPS while the Let's Encrypt challenge still answers;
+  - **headers** (an echo server behind the same template): `Host` kept, a forged `X-Forwarded-For` replaced by the client's address, `X-Forwarded-Proto: https`, no `Connection: upgrade`;
+  - **site:** `/` from Next; `/api/…` reaches Next (`X-Powered-By: Next.js`), not Strapi; `/uploads/…` 301 to the API's domain; HTTP redirects (forcessl).
+- **Differences from the plan below:** `X-Forwarded-For` is set to `$remote_addr` (replaced, not appended): with one trusted hop the API reads the same address, and a client's forged list never reaches it. The API's HTTP side redirects in the template itself, since Hestia's force-SSL is off for that domain and its server-level redirect would also catch the ACME challenge. nginx doesn't serve `/uploads` itself (the optional item): the API does, with its headers.
+- **Known:** a body over 11 MB gets nginx's HTML 413, not the API's JSON error (the admin app checks the size before uploading).
+- **In 9.7:** `v-change-web-domain-proxy-tpl dev <domain> <template>` per domain (deploy/README.md).
 
 - **As Hestia proxy templates** (9.0): new copies of `simplefood-api-proxy` and `simplefood-proxy` (`.tpl` for port 80, `.stpl` for 443) under new names. In 9.7, `v-change-web-domain-proxy-tpl dev <domain> <template>` switches each domain over, and the old templates go back the same way.
 - **The site:** drop the `/api/` and `/uploads/` locations that point at Strapi. Next's own `/api/auth/*` routes must reach the site. An old `/uploads/…` link on the site's domain redirects (301) to the API's domain.
@@ -590,7 +599,9 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
 - **Optional:** nginx serves `/uploads` directly from the volume, with the API's headers (immutable cache, `Cross-Origin-Resource-Policy: cross-origin`, `nosniff`).
 - **Done when:** both new templates are in place on the VPS, each tested on a throwaway domain or with `nginx -t`, ready to swap.
 
-**9.4 Mail** (C4, Mailgun)
+**9.4 Mail** (C4, Mailgun): in progress
+
+- **Status 2026-11-18:** `mg.kozyr.info` is verified in Mailgun (US region, `smtp.mailgun.org`); its SPF, DKIM and tracking CNAME are valid, and click/open tracking is off. The VPS's `api.env` has the domain's SMTP login (`admin@mg.kozyr.info`) and `MAIL_FROM=no-reply@mg.kozyr.info`; the login was checked from the API container (STARTTLS, `verify()`). `MAIL_NOTIFY_TO=shop@mg.kozyr.info`: `mg.kozyr.info` now has MX records (`mxa`/`mxb.mailgun.org`, set at Hostinger, verified by Mailgun) and a Mailgun route forwards `shop@` to the owner's Gmail (`match_recipient`, `forward`, `stop`). A test from the API container (SMTP → `shop@` → route → Gmail) was delivered (`250 2.0.0 OK` from Gmail's server). Left: the DMARC record and the password-reset check below (9.6).
 
 - **In Mailgun:** add the sending subdomain and turn tracking off for it. Create its SMTP credentials.
 - **DNS**, in Hostinger's panel (its nameservers serve `kozyr.info`; Hestia's zone has no effect): the TXT records Mailgun lists for it, SPF (`v=spf1 include:mailgun.org ~all`) and DKIM. No MX (the site only sends) and no tracking CNAME (tracking is off). Wait for Mailgun to show the domain as verified.
@@ -601,7 +612,17 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
   - `MAIL_FROM` (a bare address, e.g. `no-reply@mg.kozyr.info`: the code adds the name "SimpleFood") and `MAIL_NOTIFY_TO` (the shop's inbox).
 - **Done when:** a password-reset email from the rehearsal (9.6) reaches a real inbox (Gmail) with SPF, DKIM and DMARC passing and not in spam, and its link opens `https://simplefood.kozyr.info/reset-password` (not a Mailgun redirect).
 
-**9.5 Website release** (prepared now, deployed in 9.7)
+**9.5 Website release** (prepared now, deployed in 9.7): **prepared** 2026-11-18
+
+- **Done:**
+  - **`frontend/.github/workflows/deploy.yml`** (branch `feature/nest-api`, uncommitted): `nvm install`, `npm ci` and `npm run build` run in a subshell on Node 24 (`.nvmrc`); then `pm2 delete simplefood-frontend` and `HOSTNAME=127.0.0.1 PORT=3000 pm2 start … --interpreter "$(nvm which "$(cat .nvmrc)")"`, then `pm2 save`. The subshell matters: `nvm install`/`nvm use` would take the Node 20 install's `pm2` off the `PATH` (found in the test: `pm2 start` would have failed after a good build, leaving the site down).
+  - **Tested on the VPS** with the script's own lines (stand-ins for `npm ci`/`build`): the build step ran on Node 24, the outer shell kept Node 20 and its pm2; the process ran on Node 24, listened on `127.0.0.1` only (not reachable on the public IP); a failing build stopped the script before pm2, the live site untouched. nvm's default stays Node 20 (Strapi).
+  - **Node 24.22.3** is installed with nvm on the VPS (the same version as the API image).
+  - **The site's new `.env`** is ready at `/home/dev/web/simplefood.kozyr.info/frontend.env.nest-api` (outside the repo): `PROD_API_URL=http://127.0.0.1:1339`, `NEXT_PUBLIC_API_URL=https://api-simplefood.kozyr.info`. The current `.env` stays until the switch, so a redeploy of today's `main` still builds the Strapi site. Its other keys (`DEV_DOMAIN`, `PROD_DOMAIN`, `SKIP_BUILD_STATIC_GENERATION`) are read by neither version.
+  - **Client addresses:** the site's `/api/auth/*` routes pass on nginx's `X-Forwarded-For`; nginx appends the client, so with `TRUST_PROXY_HOPS=1` the API reads the real client and a forged list doesn't count.
+- **Left for 9.6:** a real build of `feature/nest-api` on the VPS with these settings (the branch isn't on GitHub yet: push it, or copy it for the rehearsal).
+
+The original notes:
 
 - **The VPS's `frontend/.env`:**
   - `PROD_API_URL=http://127.0.0.1:1339`: the server's calls go straight to the API, so the forwarded client address stays right (9.3);
@@ -612,7 +633,7 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
 - **Deploy script:** it pulls `main`, so merging `feature/nest-api` into `main` is the release.
 - **Done when:** the rehearsal build (9.6) with these settings works through nginx's address rules.
 
-**9.6 Rehearsal** (C7; repeat until it runs clean)
+**9.6 Rehearsal** (C7; repeat until it runs clean): **skipped** 2026-11-18. Pushing the site's workflow fix to `main` deployed the new site against Strapi (the site returned 404); the user chose to cut over at once instead of rolling back.
 
 - **Copy production's data:** `data.db` and `public/uploads` into a scratch folder on the VPS (copies; Strapi keeps running).
 - **Import into a rehearsal database:**
@@ -630,10 +651,21 @@ Surveyed 2026-11-16 against the frontend's `main` (Next 16.2, React 19, react-qu
 - **Then:** drop the rehearsal database and folders.
 - **Done when:** everything passes, the timing is known, and the runbook (9.7) is adjusted.
 
-**9.7 Cutover runbook** (C6: any time, no maintenance page; steps 2–6 back to back)
+**9.7 Cutover runbook** (C6: any time, no maintenance page; steps 2–6 back to back): **done** 2026-11-18, about 17:20–17:40 UTC (the site was down from the accidental deploy at 17:01 until its rebuild)
+
+- **What ran:**
+  - Strapi stopped (`pm2 stop simplefood-backend`; still in pm2's list, stopped). Archive: `/root/strapi-archive-2026-11-18/` (`strapi/` with `data.db` and `uploads/`, `SHA256SUMS`, `strapi-2026-11-18.tar.gz`, and the site's old `.env` as `frontend.env.strapi`); 222 files, identical to the originals.
+  - Import: `docker compose run --rm -T -v <archive>/strapi:/strapi:ro api node dist/strapi-import/import-strapi.js --sqlite /strapi/data.db --uploads /strapi/uploads`, dry run then for real, 4–6 s each. Counts: media 79, product categories 14, products 41, blog categories 1, posts 2, settings 1, menus 10/5/8, pages 10, sections 42, users 4, orders 7, contact submissions 4, files 219.
+  - nginx: both domains on the new templates (`v-change-web-domain-proxy-tpl`); `nginx -t` clean, nothing points at `:1338`.
+  - Site: the new `.env` copied in, the workflow's script run on the VPS (the build ran on Node 24).
+- **Found during the switch:** the site's `.nvmrc` ends in CRLF, so `nvm which "$(cat .nvmrc)"` failed and pm2 quietly started the site on Node 20. `deploy.yml` now strips whitespace and looks the path up before `pm2 delete` (so a failed lookup stops the script with the old site still up). The site was restarted on Node 24 by hand with the fixed lines.
+- **Checked from outside:** the API domain's `/health`, `/api/settings`, `/admin/`, an imported `/uploads/` image, CORS for the site, HTTP → HTTPS; the site's 12 pages linked from the homepage and both news posts (200), `/_next/image` of an imported image (200), its `/api/auth/refresh` (401 without a cookie), old `/uploads/` links (301 to the API); ports 1338 and 3000 closed from outside; no 5xx in nginx, no API errors.
+- **Left:** staff accounts (`admin:create` or `--promote`), the end-to-end order and contact-form test with both emails, an hour of watching, then 9.8.
+
+The original runbook:
 
 1. **Before:**
-   - put the website's new `.env` in place (it's only read at the next build);
+   - put the website's new `.env` in place (it's only read at the next build): `cp /home/dev/web/simplefood.kozyr.info/frontend.env.nest-api /home/dev/web/simplefood.kozyr.info/public_html/.env`;
    - have the staff list ready for `admin:create`.
 2. **Freeze Strapi:** `pm2 stop simplefood-backend`. From here its data can't change. Archive `data.db` and `public/uploads`, with checksums, and keep the archive offline.
 3. **Data:**
