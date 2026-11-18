@@ -28,7 +28,7 @@ export class ContactController {
   @Post()
   @HttpCode(HttpStatus.NO_CONTENT)
   // Per IP and sender email: caps what one address can trigger even while
-  // every visitor arrives from the Next server's IP (D15).
+  // every visitor arrives from the Next server's IP.
   @UseGuards(AuthThrottlerGuard)
   @ThrottleBy('email')
   @Throttle({ default: { limit: 5, ttl: hours(1) } })

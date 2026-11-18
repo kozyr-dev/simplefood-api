@@ -112,7 +112,7 @@ describe('Migrations (e2e)', () => {
     expect((await applied()).length).toBe(dataSource.migrations.length);
   });
 
-  describe('UserNameNotUnique (names repeat, phase 8)', () => {
+  describe('UserNameNotUnique (names repeat)', () => {
     const MIGRATION = 'UserNameNotUnique1794853284240';
     const addUser = (name: string, email: string) =>
       dataSource.query(

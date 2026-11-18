@@ -407,7 +407,7 @@ describe('Orders (e2e)', () => {
         createdAt: daysFromNow(-1),
       });
       await createOrder(dataSource, { user: olena });
-      // A guest order with Ivan's email is not his (D3).
+      // A guest order with Ivan's email is not his.
       await createOrder(dataSource, { email: 'ivan@example.com' });
       const { accessToken } = await loginAs(app, ivan);
 

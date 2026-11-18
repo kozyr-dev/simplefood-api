@@ -8,7 +8,7 @@ import {
 
 /**
  * bcrypt ignores bytes after the 72nd, so a longer password is refused
- * instead of silently cut (D9). Cyrillic letters take 2 bytes, emoji 4.
+ * instead of silently cut. Cyrillic letters take 2 bytes, emoji 4.
  */
 export const PASSWORD_BYTES_MESSAGE = `$property must be at most ${PASSWORD_MAX_BYTES} bytes in UTF-8 (fewer characters with non-Latin letters or emoji)`;
 

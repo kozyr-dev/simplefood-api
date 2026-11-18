@@ -29,9 +29,9 @@ Then, in the GitHub repository's settings:
 - **Secrets** (Settings → Secrets and variables → Actions):
   - `VPS_HOST`: `72.61.180.80`
   - `VPS_USER`: `root`
-  - `VPS_SSH_KEY`: a private key whose public half is in root's `~/.ssh/authorized_keys` (the website's deploy key works)
+  - `VPS_SSH_KEY`: a private key without a passphrase, whose public half is in root's `~/.ssh/authorized_keys`. Paste the whole file, `BEGIN` and `END` lines included.
   - `VPS_KNOWN_HOSTS`: the server's host key, so the job talks to this server only. Take the output of `ssh-keyscan -t ed25519 72.61.180.80` and check its fingerprint against `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` on the VPS.
-- **Variable** `DEPLOY_ENABLED` = `true`: the deploy job is skipped until it is set.
+- **Variable** `DEPLOY_ENABLED` = `true`: the deploy job runs only when it is set.
 
 The job logs in to GHCR on the VPS with its own short-lived token for each pull, so the VPS keeps no registry password, even for a private image.
 
@@ -42,12 +42,11 @@ Hestia writes each domain's nginx config from a proxy template, so the changes l
 - **`simplefood-api-nest-proxy`** for `api-simplefood.kozyr.info`: HTTPS proxies to `127.0.0.1:1339` with `Host`, `X-Forwarded-For` (replaced with the client's address, for `TRUST_PROXY_HOPS=1`) and `X-Forwarded-Proto`, and an 11 MB body limit. HTTP redirects to HTTPS, except the Let's Encrypt challenge.
 - **`simplefood-nest-proxy`** for `simplefood.kozyr.info`: everything to Next.js on `127.0.0.1:3000`, its own `/api/auth/*` included; old `/uploads/…` links redirect (301) to the API's domain.
 
-Switching a domain (Hestia regenerates its config and reloads nginx), and back to the Strapi-era templates the same way:
+Switching a domain to its template (Hestia regenerates the config and reloads nginx):
 
 ```bash
 v-change-web-domain-proxy-tpl dev api-simplefood.kozyr.info simplefood-api-nest-proxy
 v-change-web-domain-proxy-tpl dev simplefood.kozyr.info simplefood-nest-proxy
-# back: ... simplefood-api-proxy / simplefood-proxy
 ```
 
 After editing an installed template, rebuild the domain's config: `v-rebuild-web-domain dev <domain>`.

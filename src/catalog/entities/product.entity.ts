@@ -28,7 +28,7 @@ export class Product extends AppBaseEntity {
   @Column({ type: 'varchar', length: 255 })
   title: string;
 
-  /** HTML from Strapi. Sanitize on write once editing exists (phase 7). */
+  /** HTML, shown as-is by the site; sanitized on write (sanitizeRichHtml). */
   @Column({ type: 'text', nullable: true })
   description: string | null;
 

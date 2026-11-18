@@ -436,7 +436,7 @@ describe('Auth (e2e)', () => {
       session = await loginAs(app, user);
     });
 
-    it('the plan flow: call, token expires, 401, refresh, retry succeeds', async () => {
+    it('the refresh flow: call, token expires, 401, refresh, retry succeeds', async () => {
       await whoAmI(session.accessToken).expect(200);
 
       // 16 minutes later: the 15-minute access token has expired.

@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * Phase 8, F6 and F7: the email is an account's only unique field and the
+ * The email is an account's only unique field and the
  * only way to log in, so `username` becomes `name`, the person's name:
  * not unique, up to 100 characters (the order form's limit), `@` allowed.
  * A rename, not drop and add: the names are kept.

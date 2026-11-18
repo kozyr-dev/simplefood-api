@@ -1,8 +1,6 @@
 # SimpleFood API
 
-REST API for the SimpleFood shop. It replaces the legacy Strapi backend and serves the Next.js frontend, and, at `/admin`, the shop's admin app ([admin/](admin/)).
-
-The migration is planned in phases in [docs/backend-migration-plan.md](docs/backend-migration-plan.md).
+REST API for the SimpleFood shop. It serves the Next.js website and, at `/admin`, the shop's admin app ([admin/](admin/)).
 
 ## Stack
 
@@ -54,7 +52,7 @@ The API reads these variables. They are validated at startup in [src/config/env.
 | Variable                                       | Required | Default        | Purpose                                                                          |
 | ---------------------------------------------- | -------- | -------------- | -------------------------------------------------------------------------------- |
 | `NODE_ENV`                                     | **yes**  |                | `development`, `production` or `test`                                            |
-| `PORT`                                         | no       | `1339`         | HTTP port (`1338` is the legacy Strapi API)                                      |
+| `PORT`                                         | no       | `1339`         | HTTP port                                                                        |
 | `LOG_LEVEL`                                    | no       | per `NODE_ENV` | pino level; `test` = `silent`, `development` = `debug`, `production` = `info`    |
 | `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | **yes**  |                | PostgreSQL connection                                                            |
 | `DB_PORT`                                      | no       | `5432`         | PostgreSQL port (`5433` locally, see `.env.example`)                             |
@@ -266,9 +264,9 @@ test/
   *.e2e-spec.ts     e2e suites
 admin/              the admin app (react-admin, its own package): src/providers (API, auth,
                     data), src/resources (one file per area), src/sections (section forms),
-                    src/theme.ts (light and dark themes), src/Branding.tsx (logo, sign-in page), scripts/smoke.mjs (browser smoke
-                    test)
-docs/               migration plan
+                    src/theme.ts (light and dark themes), src/Branding.tsx (logo, sign-in
+                    page), scripts/smoke.mjs (browser smoke test)
+docs/               the Strapi → API migration plan and its record
 scripts/            docker-smoke.sh: the production image's smoke test; npm-audit.mjs: CI's npm audit
 deploy/             production: compose.yaml, deploy.sh, the settings templates, README
 Dockerfile          the production image (API + admin app); .dockerignore is an allow-list
@@ -390,7 +388,7 @@ scripts/docker-smoke.sh simplefood-api     # starts it next to a throwaway Postg
 - **The audits** fail on high and critical advisories. [scripts/npm-audit.mjs](scripts/npm-audit.mjs) runs `npm audit` and lists the few advisories reviewed as harmless here (npm can't ignore one), each with the reason; it says when an entry can go.
 - **Image:** builds the production image for `linux/amd64` and runs `scripts/docker-smoke.sh` on it.
 - **Publish** (pushes to `main` only, once the API, admin and image jobs pass): pushes the image to GHCR as `ghcr.io/<owner>/simplefood-api:<full commit SHA>`.
-- **Deploy** (after publish, once the repository variable `DEPLOY_ENABLED` is `true`): runs `deploy/deploy.sh` on the VPS over SSH. See [deploy/README.md](deploy/README.md).
+- **Deploy** (after publish, when the repository variable `DEPLOY_ENABLED` is `true`): runs `deploy/deploy.sh` on the VPS over SSH. See [deploy/README.md](deploy/README.md).
 
 A newer push cancels a pull request's running CI, but on `main` it waits, so a deploy is never cut off halfway.
 

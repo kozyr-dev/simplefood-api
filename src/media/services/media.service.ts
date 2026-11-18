@@ -27,7 +27,7 @@ function altText(alt: string | null | undefined): string | null | undefined {
 /**
  * Uploaded images: processed (services/image-processing.ts), stored
  * (MEDIA_STORAGE) and recorded as Media rows. The upload route (also
- * used by the admin app) and the data import (phase 6) go through it.
+ * used by the admin app) and the Strapi import go through it.
  *
  * Files are written before their row and removed after it, so a row never
  * points at a missing file; a file left behind by a failure is harmless.

@@ -30,7 +30,7 @@ export class MediaDto {
   id: string;
 
   /**
-   * Relative to the API origin for now.
+   * Relative to the API origin.
    * @example "/uploads/borscht_3f9a.jpg"
    */
   url: string;

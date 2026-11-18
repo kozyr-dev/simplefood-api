@@ -297,7 +297,7 @@ describe('Rate limits (e2e)', () => {
     );
   });
 
-  describe('no limit elsewhere (D12: the site shares one IP)', () => {
+  describe('no limit elsewhere (the site shares one IP)', () => {
     it('GET /users/me is not limited', async () => {
       const { accessToken } = await loginAs(app, user);
 

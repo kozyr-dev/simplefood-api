@@ -23,7 +23,7 @@ export function isStaff(role: UserRole): boolean {
  *
  * The checks repeat the DTO rules for writers that skip the DTOs (the data
  * migration, the admin CLI). The email is the only unique field and the
- * only way to log in; the name is just a name (phase 8, F6/F7).
+ * only way to log in; the name is just a name.
  */
 @Entity('app_user')
 @Unique('UQ_user_email', ['email'])

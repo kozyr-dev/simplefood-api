@@ -48,7 +48,7 @@ function notStaff(): ForbiddenException {
 /**
  * A reset or verification link that can't be used: unknown, used, expired,
  * replaced by a newer one, or its account changed email or was blocked. One
- * answer for all; 400, not 401 (D13).
+ * answer for all; 400, not 401.
  */
 function invalidToken(): BadRequestException {
   return new BadRequestException({
@@ -157,7 +157,7 @@ export class AuthService {
   /**
    * Sets a new password and ends every session, this one included; the
    * caller continues with the new pair. Access tokens already issued stay
-   * valid until they expire (D3).
+   * valid until they expire.
    */
   async changePassword(
     caller: AuthUser,
@@ -165,7 +165,7 @@ export class AuthService {
   ): Promise<AuthResultDto> {
     // 401 if deleted or blocked since the access token was issued.
     const user = await this.users.findActiveWithPassword(caller.id);
-    // 400, not 401: the frontend answers any 401 with a token refresh (D13).
+    // 400, not 401: the frontend answers any 401 with a token refresh.
     if (!(await this.passwords.verify(currentPassword, user.passwordHash))) {
       throw wrongPassword();
     }
@@ -187,7 +187,7 @@ export class AuthService {
    * Emails a reset link if an active account has this email. Returns at
    * once, whatever the email: the lookup and the sending run in the
    * background, so neither the answer nor its timing tells whether the
-   * account exists (D12).
+   * account exists.
    */
   requestPasswordReset(email: string): void {
     this.mail.defer('password-reset', async () => {
@@ -209,7 +209,7 @@ export class AuthService {
    * used up, every session ends (a thief's too), and the email counts as
    * verified (the link proved the mailbox). Doesn't log in (OWASP): the
    * client sends the user to the login form. Access tokens already issued
-   * stay valid until they expire (D3). A notice follows, as after a change.
+   * stay valid until they expire. A notice follows, as after a change.
    */
   async resetPassword({ token, newPassword }: ResetPasswordDto): Promise<void> {
     const passwordHash = await this.passwords.hash(newPassword);
@@ -286,9 +286,9 @@ export class AuthService {
       });
     }
 
-    // Strapi's cost-10 hashes are upgraded while the password is at hand
-    // (D8). A legacy password over 72 bytes can't be re-hashed: bcrypt only
-    // ever used its first 72 bytes, and hash() refuses the rest.
+    // Strapi's cost-10 hashes are upgraded while the password is at hand.
+    // A legacy password over 72 bytes can't be re-hashed: bcrypt only ever
+    // used its first 72 bytes, and hash() refuses the rest.
     if (
       this.passwords.needsRehash(hash) &&
       Buffer.byteLength(password, 'utf8') <= PASSWORD_MAX_BYTES

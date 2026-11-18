@@ -26,7 +26,7 @@ import loggerConfig from '@/config/logger.config';
     }),
     TypeOrmModule.forRootAsync(databaseConfig.asProvider()),
     LoggerModule.forRootAsync(loggerConfig.asProvider()),
-    // Limits only where AuthThrottlerGuard is applied (D12), not globally;
+    // Limits only where AuthThrottlerGuard is applied, not globally;
     // routes without their own @Throttle() get this one.
     ThrottlerModule.forRoot({
       throttlers: [{ ttl: minutes(1), limit: 30 }],

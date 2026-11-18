@@ -7,7 +7,7 @@ type ThrottledRequest = AuthRequest & { ip?: string; body?: unknown };
 
 /**
  * Rate limits for routes that check a password, create accounts or send
- * mail. Not global (D12): every server-rendered page reaches the API from
+ * mail. Not global: every server-rendered page reaches the API from
  * the Next server's one IP, so a global per-IP limit would take the whole
  * site down. Apply it with `@UseGuards(AuthThrottlerGuard)` and set the
  * limits with `@Throttle()`. Counters live in memory, per process: use a
