@@ -1,0 +1,55 @@
+name: Uptime
+
+# Checks the site and the API from outside every 15 minutes. A failed run
+# is the alert: GitHub emails whoever last changed the cron line below.
+# In a public repository GitHub disables schedules after 60 days without
+# activity; re-enable the workflow in the Actions tab if that happens.
+on:
+  schedule:
+    # Off the hour: runs at the top of the hour are often delayed.
+    - cron: '7,22,37,52 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  check:
+    name: Site, API and certificates
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check
+        run: |
+          failed=0
+
+          # 200 or an error. A timeout, a refused connection or a 5xx is
+          # tried twice more, 30 s apart, so a restart doesn't alert.
+          check() {
+            local code
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              --max-time 20 --retry 2 --retry-delay 30 --retry-connrefused "$2") || true
+            if [ "$code" = 200 ]; then
+              echo "$1: 200"
+            else
+              [ "${code:-000}" = 000 ] && code="no answer"
+              echo "::error::$1 ($2): $code"
+              failed=1
+            fi
+          }
+
+          # /health answers 503 when the database is down.
+          check "The API and its database" https://api-simplefood.kozyr.info/health
+          check "The site's homepage" https://simplefood.kozyr.info/
+
+          # Let's Encrypt certificates renew well ahead: 14 days left means renewal failed.
+          for host in simplefood.kozyr.info api-simplefood.kozyr.info; do
+            if openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null |
+              openssl x509 -noout -checkend $((14 * 24 * 3600)) > /dev/null; then
+              echo "$host: certificate valid for 14+ days"
+            else
+              echo "::error::$host: the certificate expires within 14 days, or couldn't be read"
+              failed=1
+            fi
+          done
+
+          exit "$failed"

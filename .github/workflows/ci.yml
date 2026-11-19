@@ -109,7 +109,7 @@ jobs:
       # on the VPS. (shellcheck comes with the runner.)
       - name: Check the deploy files
         run: |
-          shellcheck deploy/deploy.sh scripts/docker-smoke.sh
+          shellcheck deploy/deploy.sh deploy/disk-alert.sh scripts/docker-smoke.sh
           touch deploy/api.env
           API_IMAGE=check POSTGRES_PASSWORD=check docker compose -f deploy/compose.yaml config --quiet
 
@@ -214,8 +214,8 @@ jobs:
           printf 'Host vps\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/deploy_key\n  BatchMode yes\n  StrictHostKeyChecking yes\n' \
             "$VPS_HOST" "$VPS_USER" > ~/.ssh/config
 
-      - name: Copy the Compose file and the deploy script
-        run: scp deploy/compose.yaml deploy/deploy.sh vps:/opt/simplefood-api/
+      - name: Copy the Compose file and the scripts
+        run: scp deploy/compose.yaml deploy/deploy.sh deploy/disk-alert.sh vps:/opt/simplefood-api/
 
       # The image `publish` pushed (registry paths are lower-case). The token
       # goes on stdin, never into a command line or a file on the VPS.

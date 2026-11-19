@@ -268,7 +268,8 @@ admin/              the admin app (react-admin, its own package): src/providers 
                     page), scripts/smoke.mjs (browser smoke test)
 docs/               the Strapi → API migration plan and its record
 scripts/            docker-smoke.sh: the production image's smoke test; npm-audit.mjs: CI's npm audit
-deploy/             production: compose.yaml, deploy.sh, the settings templates, README
+deploy/             production: compose.yaml, deploy.sh, disk-alert.sh, the settings templates,
+                    nginx templates, README
 Dockerfile          the production image (API + admin app); .dockerignore is an allow-list
 ```
 
@@ -391,6 +392,8 @@ scripts/docker-smoke.sh simplefood-api     # starts it next to a throwaway Postg
 - **Deploy** (after publish, when the repository variable `DEPLOY_ENABLED` is `true`): runs `deploy/deploy.sh` on the VPS over SSH. See [deploy/README.md](deploy/README.md).
 
 A newer push cancels a pull request's running CI, but on `main` it waits, so a deploy is never cut off halfway.
+
+[.github/workflows/uptime.yml](.github/workflows/uptime.yml) checks production from outside every 15 minutes (see [deploy/README.md](deploy/README.md#monitoring)).
 
 Dependabot opens weekly update PRs for npm packages, GitHub Actions, the Node base image and the production Postgres image (patch and minor).
 

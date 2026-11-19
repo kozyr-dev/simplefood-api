@@ -2,13 +2,14 @@
 
 The VPS runs Postgres and the API with Docker Compose in `/opt/simplefood-api`. nginx (Hestia) proxies `api-simplefood.kozyr.info` to `127.0.0.1:1339`. CI publishes the image to GHCR, and the `deploy` job in [ci.yml](../.github/workflows/ci.yml) runs [deploy.sh](deploy.sh) on the VPS for every push to `main`.
 
-| File                         | Where                    | What                                                                                           |
-| ---------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------- |
-| [compose.yaml](compose.yaml) | git → VPS (CI copies it) | Postgres, the API, and the one-off `migrate`                                                   |
-| [deploy.sh](deploy.sh)       | git → VPS (CI copies it) | pull, migrate, replace the API, wait for healthy (back to the previous image if it isn't)      |
-| `.env`                       | VPS only (`chmod 600`)   | for Compose: `POSTGRES_PASSWORD`, `API_IMAGE` (written by deploy.sh). [Template](.env.example) |
-| `api.env`                    | VPS only (`chmod 600`)   | the API's settings. [Template](api.env.example)                                                |
-| [nginx/](nginx)              | git → VPS (by hand)      | Hestia proxy templates for the site and the API domain (below)                                 |
+| File                           | Where                    | What                                                                                           |
+| ------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------- |
+| [compose.yaml](compose.yaml)   | git → VPS (CI copies it) | Postgres, the API, and the one-off `migrate`                                                   |
+| [deploy.sh](deploy.sh)         | git → VPS (CI copies it) | pull, migrate, replace the API, wait for healthy (back to the previous image if it isn't)      |
+| [disk-alert.sh](disk-alert.sh) | git → VPS (CI copies it) | hourly by cron: emails the shop's inbox when a disk is over 85% full (below)                   |
+| `.env`                         | VPS only (`chmod 600`)   | for Compose: `POSTGRES_PASSWORD`, `API_IMAGE` (written by deploy.sh). [Template](.env.example) |
+| `api.env`                      | VPS only (`chmod 600`)   | the API's settings. [Template](api.env.example)                                                |
+| [nginx/](nginx)                | git → VPS (by hand)      | Hestia proxy templates for the site and the API domain (below)                                 |
 
 ## One-time setup
 
@@ -50,6 +51,21 @@ v-change-web-domain-proxy-tpl dev simplefood.kozyr.info simplefood-nest-proxy
 ```
 
 After editing an installed template, rebuild the domain's config: `v-rebuild-web-domain dev <domain>`.
+
+## Monitoring
+
+- **Uptime:** [uptime.yml](../.github/workflows/uptime.yml) checks the API's `/health` (which includes the database), the site's homepage and both certificates from GitHub every 15 minutes. A failed run is the alert: GitHub emails whoever last changed its cron line. In a public repository, GitHub disables schedules after 60 days without a commit; turn the workflow back on in the Actions tab. Run it by hand there too (Run workflow).
+- **Disk space:** [disk-alert.sh](disk-alert.sh) emails `MAIL_NOTIFY_TO` through the API's SMTP login (both from `api.env`) when a disk is over 85% full, then at most once a day while it stays that way. Once, as root:
+
+  ```bash
+  printf '%s\n' '17 * * * * root bash /opt/simplefood-api/disk-alert.sh 2>&1 | logger -t disk-alert' > /etc/cron.d/simplefood-disk-alert
+  bash /opt/simplefood-api/disk-alert.sh 1    # a test: any disk over 1% sends the email now
+  rm /var/lib/simplefood-disk-alert/last-sent # so the real check isn't held back a day
+  ```
+
+  Its runs are in the system log: `journalctl -t disk-alert`.
+
+- **Logs:** Docker keeps the last 5 × 10 MB of each container's log (`compose.yaml`).
 
 ## Everyday commands
 

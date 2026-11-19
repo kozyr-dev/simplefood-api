@@ -660,7 +660,7 @@ The original notes:
   - Site: the new `.env` copied in, the workflow's script run on the VPS (the build ran on Node 24).
 - **Found during the switch:** the site's `.nvmrc` ends in CRLF, so `nvm which "$(cat .nvmrc)"` failed and pm2 quietly started the site on Node 20. `deploy.yml` now strips whitespace and looks the path up before `pm2 delete` (so a failed lookup stops the script with the old site still up). The site was restarted on Node 24 by hand with the fixed lines.
 - **Checked from outside:** the API domain's `/health`, `/api/settings`, `/admin/`, an imported `/uploads/` image, CORS for the site, HTTP → HTTPS; the site's 12 pages linked from the homepage and both news posts (200), `/_next/image` of an imported image (200), its `/api/auth/refresh` (401 without a cookie), old `/uploads/` links (301 to the API); ports 1338 and 3000 closed from outside; no 5xx in nginx, no API errors.
-- **Left:** staff accounts (`admin:create` or `--promote`), the end-to-end order and contact-form test with both emails, an hour of watching, then 9.8.
+- **Checked by the user** (2026-11-19): staff accounts, the end-to-end order and contact-form test with both emails, signing in on the site and in the admin. Next: 9.8.
 
 The original runbook:
 
@@ -685,6 +685,15 @@ The original runbook:
 8. **Watch for an hour:** `docker compose logs`, pm2 logs, 5xx in nginx.
 
 **9.8 After the switch**
+
+- **Done** 2026-11-19:
+  - Strapi removed: `pm2 delete simplefood-backend` and `pm2 save`; `/home/dev/web/api-simplefood.kozyr.info/public_html` emptied (the folder stays for Hestia; 898 MB freed); `/root/sf-release.*` removed. Before that: nothing listened on 1338, no nginx config, cron job or systemd unit referred to it, and the archive's 222 checksums matched. The archive stays in `/root/strapi-archive-2026-11-18/`.
+  - Uptime: [uptime.yml](../.github/workflows/uptime.yml) checks `/health`, the homepage and both certificates every 15 minutes from GitHub.
+  - Disk space: [disk-alert.sh](../deploy/disk-alert.sh), hourly from `/etc/cron.d/simplefood-disk-alert`, emails `MAIL_NOTIFY_TO` over 85% (at most daily); a test email was accepted by Mailgun.
+  - Docker's log rotation was already in place (5 × 10 MB per container).
+- **Left to the user:** archive or remove the backend repo's deploy workflow; the credential clean-up (Mailgun key and SMTP password, root password, SSH password login) was declined.
+
+The original list:
 
 - **Monitoring:** an uptime check on `https://api-simplefood.kozyr.info/health` and the homepage; disk-space alerts; Docker's log rotation (9.2).
 - **Customers:**
